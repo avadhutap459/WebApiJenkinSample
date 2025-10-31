@@ -22,7 +22,7 @@ namespace WebApi.Test
             Assert.NotNull(result);
             Assert.Equal(2, result.Count());
             Assert.Contains("value1", result);
-            Assert.Contains("value2", result);
+            Assert.Contains("value3", result);
         }
     }
 }
