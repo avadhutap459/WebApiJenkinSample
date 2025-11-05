@@ -7,6 +7,7 @@ namespace WebApi.Controllers
     [ApiController]
     public class HomeController : ControllerBase
     {
+        [HttpGet]
         public IActionResult Get()
         {
             return Ok("Welcome to the Home Controller!");
