@@ -25,18 +25,6 @@ namespace WebApi.Controllers
             return Ok(info);
         }
 
-        [HttpGet("GetInformation1")]
-        public IActionResult GetInformation()
-        {
-            var info = new
-            {
-                Application = "WebApi2",
-                Version = "1.1.0",
-                Description = "This is the Home Controller providing basic information."
-            };
-            return Ok(info);
-        }
-
         
     }
 }
