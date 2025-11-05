@@ -37,7 +37,7 @@ namespace WebApi.Controllers
             return Ok(info);
         }
 
-        [HttpGet("GetDotInfo")]
+        [HttpGet("GetDotNetCourseInfo")]
         public IActionResult GetDotnetInfo()
         {
             var info = new
