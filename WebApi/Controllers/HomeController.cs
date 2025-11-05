@@ -12,5 +12,17 @@ namespace WebApi.Controllers
         {
             return Ok("Welcome to the Home Controller!");
         }
+
+        [HttpGet]
+        public IActionResult GetInfo()
+        {
+            var info = new
+            {
+                Application = "WebApi",
+                Version = "1.0.0",
+                Description = "This is the Home Controller providing basic information."
+            };
+            return Ok(info);
+        }
     }
 }
