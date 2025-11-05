@@ -13,7 +13,7 @@ namespace WebApi.Controllers
             return Ok("Welcome to the Home Controller!");
         }
 
-        [HttpGet]
+        [HttpGet("GetInfo")]
         public IActionResult GetInfo()
         {
             var info = new
