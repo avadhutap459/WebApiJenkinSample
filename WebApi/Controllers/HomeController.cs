@@ -25,7 +25,7 @@ namespace WebApi.Controllers
             return Ok(info);
         }
 
-        [HttpGet("GetInformation")]
+        [HttpGet("GetInformation1")]
         public IActionResult GetInformation()
         {
             var info = new
