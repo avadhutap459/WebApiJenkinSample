@@ -37,16 +37,5 @@ namespace WebApi.Controllers
             return Ok(info);
         }
 
-        [HttpGet("GetDotNetCourseInfo")]
-        public IActionResult GetDotnetInfo()
-        {
-            var info = new
-            {
-                Application = "WebApi3",
-                Version = "2.1.0",
-                Description = "This is the Home Controller providing basic information."
-            };
-            return Ok(info);
-        }
     }
 }
