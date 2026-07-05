@@ -3,7 +3,7 @@ name: Build and Publish .NET 8 Application
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   publish:
