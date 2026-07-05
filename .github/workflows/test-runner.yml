@@ -8,11 +8,22 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Display Hostname
-        run: hostname
+      - name: Show PATH
+        shell: pwsh
+        run: |
+          $env:PATH
+
+      - name: Locate dotnet
+        shell: pwsh
+        run: |
+          where.exe dotnet
 
       - name: Show .NET Version
-        run: dotnet --version
+        shell: pwsh
+        run: |
+          dotnet --version
 
-      - name: Show Current Directory
-        run: pwd
+      - name: List SDKs
+        shell: pwsh
+        run: |
+          dotnet --list-sdks
