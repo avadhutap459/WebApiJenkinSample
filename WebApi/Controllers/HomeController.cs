@@ -10,7 +10,7 @@ namespace WebApi.Controllers
         [HttpGet]
         public IActionResult Get()
         {
-            return Ok("Welcome to the Home Controller!");
+            return Ok("Welcome to the Home Controller! Avadhut Parab");
         }
 
         [HttpGet("GetInfo")]
