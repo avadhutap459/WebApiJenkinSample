@@ -50,3 +50,15 @@ jobs:
             -Path "$env:PUBLISH_FOLDER\*" `
             -DestinationPath "$env:PACKAGE_FOLDER\WebApi.zip" `
             -Force
+            
+      - name: Copy Package to Ansible
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass `
+          -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
+
+      - name: Deploy using Ansible
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass `
+          -File D:\GitHubRunner\Scripts\Deploy.ps1
