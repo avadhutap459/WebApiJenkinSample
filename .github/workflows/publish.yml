@@ -1,4 +1,4 @@
-name: Build and Publish .NET 8 Application
+name: Production Deployment
 
 on:
   push:
@@ -6,101 +6,57 @@ on:
       - master
 
 jobs:
-  publish:
-    name: Build and Publish
+  deploy:
 
-    runs-on:
-      - self-hosted
-      - windows
+    runs-on: self-hosted
 
     env:
-      BUILD_CONFIGURATION: Release
-      PUBLISH_TEMP: D:\PublishTemp
-      PUBLISH_FOLDER: D:\Applications\MyAPI\Publish
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
 
     steps:
 
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Verify .NET SDK
-      shell: powershell
-      run: |
-        dotnet --info
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
 
-    - name: Display .NET Version
-      shell: powershell
-      run: |
-        dotnet --info
+      - name: Restore Packages
+        run: |
+          dotnet restore
 
-    - name: Restore NuGet Packages
-      run: |
-        dotnet restore
+      - name: Build Application
+        run: |
+          dotnet build --configuration Release --no-restore
 
-    - name: Build Solution
-      run: |
-        dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+      - name: Execute Unit Tests
+        run: |
+          dotnet test --configuration Release --no-build
 
-    - name: Remove Previous Temporary Publish Folder
-      shell: powershell
-      run: |
-        if (Test-Path "${{ env.PUBLISH_TEMP }}")
-        {
-            Remove-Item "${{ env.PUBLISH_TEMP }}" -Recurse -Force
-        }
+      - name: Publish Application
+        run: |
+          dotnet publish -c Release -o "${{ env.PUBLISH_FOLDER }}"
 
-    - name: Publish Application
-      run: |
-        dotnet publish `
-        --configuration ${{ env.BUILD_CONFIGURATION }} `
-        --output "${{ env.PUBLISH_TEMP }}" `
-        --no-build
+      - name: Create ZIP Package
+        shell: powershell
+        run: |
+          Compress-Archive `
+            -Path "${{ env.PUBLISH_FOLDER }}\*" `
+            -DestinationPath "${{ env.PACKAGE_FOLDER }}\${{ env.PACKAGE_NAME }}" `
+            -Force
 
-    - name: Create Publish Folder if Not Exists
-      shell: powershell
-      run: |
-        if (!(Test-Path "${{ env.PUBLISH_FOLDER }}"))
-        {
-            New-Item `
-              -ItemType Directory `
-              -Path "${{ env.PUBLISH_FOLDER }}"
-        }
+      - name: Copy Package to Ansible
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass `
+          -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
 
-    - name: Clean Existing Publish Folder
-      shell: powershell
-      run: |
-        Get-ChildItem "${{ env.PUBLISH_FOLDER }}" -Force -ErrorAction SilentlyContinue |
-        Remove-Item -Recurse -Force
-
-    - name: Copy Published Files
-      shell: powershell
-      run: |
-        Copy-Item `
-          "${{ env.PUBLISH_TEMP }}\*" `
-          "${{ env.PUBLISH_FOLDER }}" `
-          -Recurse `
-          -Force
-
-    - name: Display Published Files
-      shell: powershell
-      run: |
-        Get-ChildItem "${{ env.PUBLISH_FOLDER }}"
-
-    - name: Cleanup Temporary Publish Folder
-      shell: powershell
-      run: |
-        if (Test-Path "${{ env.PUBLISH_TEMP }}")
-        {
-            Remove-Item "${{ env.PUBLISH_TEMP }}" -Recurse -Force
-        }
-
-    - name: Deployment Completed
-      shell: powershell
-      run: |
-        Write-Host ""
-        Write-Host "======================================="
-        Write-Host " Build Successful"
-        Write-Host " Publish Successful"
-        Write-Host " Files copied successfully"
-        Write-Host " Location : ${{ env.PUBLISH_FOLDER }}"
-        Write-Host "======================================="
+      - name: Deploy using Ansible
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass `
+          -File D:\GitHubRunner\Scripts\Deploy.ps1
