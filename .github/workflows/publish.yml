@@ -98,6 +98,21 @@ jobs:
       run: |
 
         Get-ChildItem "$env:PACKAGE_FOLDER"
+        
+    ####################################################
+    # Verify SSH
+    ####################################################
+    
+    - name: Test SSH
+      shell: powershell
+      run: |
+        ssh `
+          -v `
+          -i C:\Users\Administrator\.ssh\id_rsa `
+          -o BatchMode=yes `
+          -o StrictHostKeyChecking=no `
+          ec2-user@172.31.9.73 `
+          "hostname"
 
     ####################################################
     # Copy Package to Ansible
