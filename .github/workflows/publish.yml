@@ -6,57 +6,47 @@ on:
       - master
 
 jobs:
-  deploy:
+ deploy:
 
     runs-on: self-hosted
+
+    defaults:
+      run:
+        shell: powershell
 
     env:
       PUBLISH_FOLDER: D:\GitHubRunner\Publish
       PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
 
     steps:
 
-      - name: Checkout Repository
+      - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+      - name: Verify .NET SDK
+        run: |
+          dotnet --info
+          dotnet --list-sdks
 
-      - name: Restore Packages
+      - name: Restore
         run: |
           dotnet restore
 
-      - name: Build Application
+      - name: Build
         run: |
           dotnet build --configuration Release --no-restore
 
-      - name: Execute Unit Tests
+      - name: Test
         run: |
           dotnet test --configuration Release --no-build
 
-      - name: Publish Application
+      - name: Publish
         run: |
-          dotnet publish -c Release -o "${{ env.PUBLISH_FOLDER }}"
+          dotnet publish -c Release -o "$env:PUBLISH_FOLDER"
 
-      - name: Create ZIP Package
-        shell: powershell
+      - name: Create ZIP
         run: |
           Compress-Archive `
-            -Path "${{ env.PUBLISH_FOLDER }}\*" `
-            -DestinationPath "${{ env.PACKAGE_FOLDER }}\${{ env.PACKAGE_NAME }}" `
+            -Path "$env:PUBLISH_FOLDER\*" `
+            -DestinationPath "$env:PACKAGE_FOLDER\WebApi.zip" `
             -Force
-
-      - name: Copy Package to Ansible
-        shell: powershell
-        run: |
-          powershell -ExecutionPolicy Bypass `
-          -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
-
-      - name: Deploy using Ansible
-        shell: powershell
-        run: |
-          powershell -ExecutionPolicy Bypass `
-          -File D:\GitHubRunner\Scripts\Deploy.ps1
