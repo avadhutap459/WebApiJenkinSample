@@ -1,4 +1,4 @@
-name: Production Deployment
+name: Production CI/CD
 
 on:
   push:
@@ -6,7 +6,8 @@ on:
       - master
 
 jobs:
- deploy:
+
+  build-deploy:
 
     runs-on: self-hosted
 
@@ -17,48 +18,137 @@ jobs:
     env:
       PUBLISH_FOLDER: D:\GitHubRunner\Publish
       PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
 
     steps:
 
-      - name: Checkout Source
-        uses: actions/checkout@v4
+    ####################################################
+    # Checkout
+    ####################################################
 
-      - name: Verify .NET SDK
-        run: |
-          dotnet --info
-          dotnet --list-sdks
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Restore
-        run: |
-          dotnet restore
+    ####################################################
+    # Verify SDK
+    ####################################################
 
-      - name: Build
-        run: |
-          dotnet build --configuration Release --no-restore
+    - name: Verify .NET SDK
+      run: |
+        dotnet --info
+        dotnet --list-sdks
 
-      - name: Test
-        run: |
-          dotnet test --configuration Release --no-build
+    ####################################################
+    # Restore
+    ####################################################
 
-      - name: Publish
-        run: |
-          dotnet publish -c Release -o "$env:PUBLISH_FOLDER"
+    - name: Restore NuGet Packages
+      run: |
+        dotnet restore
 
-      - name: Create ZIP
-        run: |
-          Compress-Archive `
-            -Path "$env:PUBLISH_FOLDER\*" `
-            -DestinationPath "$env:PACKAGE_FOLDER\WebApi.zip" `
-            -Force
-            
-      - name: Copy Package to Ansible
-        shell: powershell
-        run: |
-          powershell -ExecutionPolicy Bypass `
-          -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
+    ####################################################
+    # Build
+    ####################################################
 
-      - name: Deploy using Ansible
-        shell: powershell
-        run: |
-          powershell -ExecutionPolicy Bypass `
-          -File D:\GitHubRunner\Scripts\Deploy.ps1
+    - name: Build Solution
+      run: |
+        dotnet build --configuration Release --no-restore
+
+    ####################################################
+    # Unit Test
+    ####################################################
+
+    - name: Run Unit Tests
+      run: |
+        dotnet test --configuration Release --no-build
+
+    ####################################################
+    # Publish
+    ####################################################
+
+    - name: Publish Application
+      run: |
+        Remove-Item "$env:PUBLISH_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+        dotnet publish `
+          --configuration Release `
+          --output "$env:PUBLISH_FOLDER"
+
+    ####################################################
+    # Zip Package
+    ####################################################
+
+    - name: Create Deployment Package
+      run: |
+
+        if(Test-Path "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME")
+        {
+            Remove-Item "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME" -Force
+        }
+
+        Compress-Archive `
+          -Path "$env:PUBLISH_FOLDER\*" `
+          -DestinationPath "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME"
+
+    ####################################################
+    # Verify Package
+    ####################################################
+
+    - name: Verify Package
+      run: |
+
+        Get-ChildItem "$env:PACKAGE_FOLDER"
+
+    ####################################################
+    # Copy Package to Ansible
+    ####################################################
+
+    - name: Copy Package to Ansible Server
+      run: |
+
+        powershell.exe `
+        -ExecutionPolicy Bypass `
+        -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
+
+    ####################################################
+    # Verify Copy
+    ####################################################
+
+    - name: Verify Package on Ansible
+      run: |
+
+        ssh ec2-user@172.31.9.73 `
+        "ls -lh /opt/ansible/artifacts/latest"
+
+    ####################################################
+    # Deploy
+    ####################################################
+
+    - name: Execute Ansible Deployment
+      run: |
+
+        powershell.exe `
+        -ExecutionPolicy Bypass `
+        -File D:\GitHubRunner\Scripts\Deploy.ps1
+
+    ####################################################
+    # Health Check
+    ####################################################
+
+    - name: Health Check
+      run: |
+
+        ssh ec2-user@172.31.9.73 `
+        "cd /opt/ansible && sudo ansible-playbook playbooks/healthcheck.yml"
+
+    ####################################################
+    # Finished
+    ####################################################
+
+    - name: Deployment Completed
+      run: |
+
+        Write-Host ""
+        Write-Host "=================================="
+        Write-Host "Deployment Completed Successfully"
+        Write-Host "=================================="
