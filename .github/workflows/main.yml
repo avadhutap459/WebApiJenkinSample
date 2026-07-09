@@ -111,7 +111,7 @@ jobs:
           -i C:\Users\Administrator\.ssh\id_rsa `
           -o BatchMode=yes `
           -o StrictHostKeyChecking=no `
-          ec2-user@172.31.36.72`
+          ec2-user@172.31.36.72 `
           "hostname"
 
     ####################################################
