@@ -1,0 +1,169 @@
+name: Production CI/CD
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+
+  build-deploy:
+
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        shell: powershell
+
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+    steps:
+
+    ####################################################
+    # Checkout
+    ####################################################
+
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    ####################################################
+    # Verify SDK
+    ####################################################
+
+    - name: Verify .NET SDK
+      run: |
+        dotnet --info
+        dotnet --list-sdks
+
+    ####################################################
+    # Restore
+    ####################################################
+
+    - name: Restore NuGet Packages
+      run: |
+        dotnet restore
+
+    ####################################################
+    # Build
+    ####################################################
+
+    - name: Build Solution
+      run: |
+        dotnet build --configuration Release --no-restore
+
+    ####################################################
+    # Unit Test
+    ####################################################
+
+    - name: Run Unit Tests
+      run: |
+        dotnet test --configuration Release --no-build
+
+    ####################################################
+    # Publish
+    ####################################################
+
+    - name: Publish Application
+      run: |
+        Remove-Item "$env:PUBLISH_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+        dotnet publish `
+          --configuration Release `
+          --output "$env:PUBLISH_FOLDER"
+
+    ####################################################
+    # Zip Package
+    ####################################################
+
+    - name: Create Deployment Package
+      run: |
+
+        if(Test-Path "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME")
+        {
+            Remove-Item "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME" -Force
+        }
+
+        Compress-Archive `
+          -Path "$env:PUBLISH_FOLDER\*" `
+          -DestinationPath "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME"
+
+    ####################################################
+    # Verify Package
+    ####################################################
+
+    - name: Verify Package
+      run: |
+
+        Get-ChildItem "$env:PACKAGE_FOLDER"
+        
+    ####################################################
+    # Verify SSH
+    ####################################################
+    
+    - name: Test SSH
+      shell: powershell
+      run: |
+        ssh `
+          -v `
+          -i C:\Users\Administrator\.ssh\id_rsa `
+          -o BatchMode=yes `
+          -o StrictHostKeyChecking=no `
+          ec2-user@172.31.36.72`
+          "hostname"
+
+    ####################################################
+    # Copy Package to Ansible
+    ####################################################
+
+    - name: Copy Package to Ansible Server
+      run: |
+
+        powershell.exe `
+        -ExecutionPolicy Bypass `
+        -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
+
+    ####################################################
+    # Verify Copy
+    ####################################################
+
+    - name: Verify Package on Ansible
+      run: |
+
+        ssh ec2-user@172.31.36.72 `
+        "ls -lh /opt/ansible/artifacts/latest"
+
+    ####################################################
+    # Deploy
+    ####################################################
+
+    - name: Execute Ansible Deployment
+      run: |
+
+        powershell.exe `
+        -ExecutionPolicy Bypass `
+        -File D:\GitHubRunner\Scripts\Deploy.ps1
+
+    ####################################################
+    # Health Check
+    ####################################################
+
+    - name: Health Check
+      run: |
+
+        ssh ec2-user@172.31.36.72 `
+        "cd /opt/ansible && sudo ansible-playbook playbooks/healthcheck.yml"
+
+    ####################################################
+    # Finished
+    ####################################################
+
+    - name: Deployment Completed
+      run: |
+
+        Write-Host ""
+        Write-Host "=================================="
+        Write-Host "Deployment Completed Successfully"
+        Write-Host "=================================="
