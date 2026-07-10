@@ -12,6 +12,11 @@ namespace WebApi.Controllers
         {
             return Ok("Welcome to the Home Controller! Avadhut Parab");
         }
+        [HttpGet("PipeLine")]
+        public IActionResult GetPipeLine()
+        {
+            return Ok("Hello Pipeline Executed");
+        }
 
         [HttpGet("GetInfo")]
         public IActionResult GetInfo()
