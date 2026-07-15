@@ -115,7 +115,7 @@ jobs:
         $Token = "${{ secrets.SONAR_TOKEN }}"
         $Host = "${{ secrets.SONAR_HOST_URL }}"
     
-        $pair = "$Token:"
+        $pair = $Token + ":"
         $base64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
     
         Write-Host "Waiting for Sonar analysis..."
