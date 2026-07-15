@@ -136,47 +136,194 @@ jobs:
         }
     
     ####################################################
-    # Export Sonar Report
+    # Export Sonar Reports
     ####################################################
     
-    - name: Export Sonar Report
+    - name: Export Sonar Reports
     
       run: |
     
-        if(!(Test-Path "$env:SONAR_REPORT"))
+        if(Test-Path "$env:SONAR_REPORT")
         {
-          New-Item -ItemType Directory `
-            "$env:SONAR_REPORT" | Out-Null
+            Remove-Item "$env:SONAR_REPORT\*" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        else
+        {
+            New-Item -ItemType Directory `
+              "$env:SONAR_REPORT" | Out-Null
         }
     
-        $pair = "${{ secrets.SONAR_TOKEN }}:"
-        $encoded = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
+        $Token="${{ secrets.SONAR_TOKEN }}"
+    
+        $pair=$Token + ":"
+    
+        $base64=[Convert]::ToBase64String(
+            [System.Text.Encoding]::ASCII.GetBytes($pair)
+        )
+    
+        ##################################################
+        # Export Metrics
+        ##################################################
     
         Invoke-RestMethod `
-          -Uri "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=WebApi" `
-          -Headers @{ Authorization = "Basic $encoded" } |
-          ConvertTo-Json -Depth 10 |
-          Out-File "$env:SONAR_REPORT\Issues.json"
+          -Uri "${{ secrets.SONAR_HOST_URL }}/api/measures/component?component=WebApi&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density,reliability_rating,security_rating,sqale_rating,ncloc"
     
-        Invoke-RestMethod `
-          -Uri "${{ secrets.SONAR_HOST_URL }}/api/measures/component?component=WebApi&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density" `
-          -Headers @{ Authorization = "Basic $encoded" } |
-          ConvertTo-Json -Depth 10 |
+          -Headers @{
+              Authorization="Basic $base64"
+          } |
+          ConvertTo-Json -Depth 50 |
           Out-File "$env:SONAR_REPORT\Metrics.json"
+    
+        ##################################################
+        # Export Issues
+        ##################################################
+    
+        Invoke-RestMethod `
+          -Uri "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=WebApi&ps=500"
+    
+          -Headers @{
+              Authorization="Basic $base64"
+          } |
+          ConvertTo-Json -Depth 100 |
+          Out-File "$env:SONAR_REPORT\Issues.json"
+
+    ####################################################
+    # Generate Sonar HTML Report
+    ####################################################
+    
+    - name: Generate Sonar HTML Report
+    
+      run: |
+    
+          $metrics = Get-Content `
+          "$env:SONAR_REPORT\Metrics.json" |
+          ConvertFrom-Json
+    
+          $html=@"
+    
+                  <html>
+                  
+                  <head>
+                  
+                  <title>SonarQube Report</title>
+                  
+                  <style>
+                  
+                  body{
+                  font-family:Arial;
+                  margin:40px;
+                  }
+                  
+                  table{
+                  width:80%;
+                  border-collapse:collapse;
+                  }
+                  
+                  th,td{
+                  border:1px solid black;
+                  padding:10px;
+                  }
+                  
+                  th{
+                  background:#efefef;
+                  }
+                  
+                  </style>
+                  
+                  </head>
+                  
+                  <body>
+                  
+                  <h1>SonarQube Analysis Report</h1>
+                  
+                  <table>
+                  
+                  <tr>
+                  
+                  <th>Metric</th>
+                  
+                  <th>Value</th>
+                  
+                  </tr>
+                  
+                  "@
+                  
+                  foreach($item in $metrics.component.measures)
+                  {
+                  
+                  $html += "<tr><td>$($item.metric)</td><td>$($item.value)</td></tr>"
+                  
+                  }
+                  
+                  $html += @"
+                  
+                  </table>
+                  
+                  </body>
+                  
+                  </html>
+                  
+                  "@
+                  
+          $html |
+          Out-File "$env:SONAR_REPORT\SonarReport.html"
+
+    ####################################################
+    # Generate PDF Report
+    ####################################################
+    
+    - name: Generate PDF Report
+    
+      run: |
+    
+          & "C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe" `
+          "$env:SONAR_REPORT\SonarReport.html" `
+          "$env:SONAR_REPORT\SonarReport.pdf"
 
     ####################################################
     # Generate Coverage Report
     ####################################################
     
     - name: Generate Coverage Report
+
+      run: |
+    
+          reportgenerator `
+            -reports:"$env:COVERAGE_REPORT\coverage.opencover.xml" `
+            -targetdir:"$env:COVERAGE_REPORT\Html" `
+            -reporttypes:"Html;HtmlSummary"
+    
+    ####################################################
+    # Verify Reports
+    ####################################################
+    
+    - name: Verify Reports
     
       run: |
     
-        reportgenerator `
-          -reports:"$env:COVERAGE_REPORT\coverage.opencover.xml" `
-          -targetdir:"$env:COVERAGE_REPORT\Html" `
-          -reporttypes:Html
+          Get-ChildItem `
+          "$env:REPORT_FOLDER" `
+          -Recurse
+
+    ####################################################
+    # Zip Reports
+    ####################################################
     
+    - name: Zip Reports
+    
+      run: |
+    
+          $ReportZip="$env:PACKAGE_FOLDER\Reports.zip"
+    
+          if(Test-Path $ReportZip)
+          {
+              Remove-Item $ReportZip -Force
+          }
+    
+          Compress-Archive `
+              -Path "$env:REPORT_FOLDER\*" `
+              -DestinationPath $ReportZip
+              
     ####################################################
     # Publish
     ####################################################
