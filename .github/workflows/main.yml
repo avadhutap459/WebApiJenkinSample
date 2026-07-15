@@ -134,59 +134,173 @@ jobs:
         {
             throw "Quality Gate Failed"
         }
-    
+
     ####################################################
     # Export Sonar Reports
     ####################################################
     
     - name: Export Sonar Reports
-    
+      shell: powershell
       run: |
     
-        if(Test-Path "$env:SONAR_REPORT")
+        ##################################################
+        # Create Sonar Report Folder
+        ##################################################
+    
+        if (Test-Path "$env:SONAR_REPORT")
         {
-            Remove-Item "$env:SONAR_REPORT\*" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item "$env:SONAR_REPORT\*" `
+                -Recurse `
+                -Force `
+                -ErrorAction SilentlyContinue
         }
         else
         {
-            New-Item -ItemType Directory `
-              "$env:SONAR_REPORT" | Out-Null
+            New-Item `
+                -ItemType Directory `
+                -Path "$env:SONAR_REPORT" | Out-Null
         }
     
-        $Token="${{ secrets.SONAR_TOKEN }}"
+        ##################################################
+        # Authentication
+        ##################################################
     
-        $pair = "$($Token):"
+        $Token = "${{ secrets.SONAR_TOKEN }}"
+        $SonarUrl = "${{ secrets.SONAR_HOST_URL }}"
     
-        $base64=[Convert]::ToBase64String(
-            [System.Text.Encoding]::ASCII.GetBytes($pair)
+        $Pair = "$($Token):"
+    
+        $Base64 = [Convert]::ToBase64String(
+            [System.Text.Encoding]::ASCII.GetBytes($Pair)
         )
+    
+        $Headers = @{
+            Authorization = "Basic $Base64"
+        }
+    
+        ##################################################
+        # Debug Information
+        ##################################################
+    
+        Write-Host ""
+        Write-Host "========================================="
+        Write-Host "Sonar URL : $SonarUrl"
+        Write-Host "Token Length : $($Token.Length)"
+        Write-Host "========================================="
+        Write-Host ""
+    
+        ##################################################
+        # Validate Authentication
+        ##################################################
+    
+        try
+        {
+            $Auth = Invoke-RestMethod `
+                -Method Get `
+                -Uri "$SonarUrl/api/authentication/validate" `
+                -Headers $Headers
+    
+            Write-Host "Authentication Result:"
+            $Auth | ConvertTo-Json
+    
+            if($Auth.valid -ne $true)
+            {
+                throw "Sonar Authentication Failed."
+            }
+        }
+        catch
+        {
+            Write-Host ""
+            Write-Host "Authentication Error"
+            Write-Host $_.Exception.Message
+            throw
+        }
+    
+        ##################################################
+        # Verify Project Exists
+        ##################################################
+    
+        try
+        {
+            $Project = Invoke-RestMethod `
+                -Method Get `
+                -Uri "$SonarUrl/api/components/show?component=WebApi" `
+                -Headers $Headers
+    
+            Write-Host ""
+            Write-Host "Project Found : $($Project.component.key)"
+            Write-Host ""
+        }
+        catch
+        {
+            Write-Host ""
+            Write-Host "Project WebApi not found."
+            throw
+        }
     
         ##################################################
         # Export Metrics
         ##################################################
     
-           Invoke-RestMethod `
-            -Uri "${{ secrets.SONAR_HOST_URL }}/api/measures/component?component=WebApi&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density,reliability_rating,security_rating,sqale_rating,ncloc" `
-            -Method Get `
-            -Headers @{
-                Authorization = "Basic $base64"
-          } |
-          ConvertTo-Json -Depth 50 |
-          Out-File "$env:SONAR_REPORT\Metrics.json"
+        try
+        {
+            Invoke-RestMethod `
+                -Method Get `
+                -Uri "$SonarUrl/api/measures/component?component=WebApi&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density,reliability_rating,security_rating,sqale_rating,ncloc" `
+                -Headers $Headers |
+            ConvertTo-Json -Depth 100 |
+            Out-File `
+                "$env:SONAR_REPORT\Metrics.json" `
+                -Encoding UTF8
+    
+            Write-Host "Metrics exported successfully."
+        }
+        catch
+        {
+            Write-Host ""
+            Write-Host "Unable to export Metrics."
+            Write-Host $_.Exception.Message
+            throw
+        }
     
         ##################################################
         # Export Issues
         ##################################################
     
-        Invoke-RestMethod `
-          -Uri "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=WebApi&ps=500"
+        try
+        {
+            Invoke-RestMethod `
+                -Method Get `
+                -Uri "$SonarUrl/api/issues/search?componentKeys=WebApi&ps=500" `
+                -Headers $Headers |
+            ConvertTo-Json -Depth 100 |
+            Out-File `
+                "$env:SONAR_REPORT\Issues.json" `
+                -Encoding UTF8
     
-          -Headers @{
-              Authorization="Basic $base64"
-          } |
-          ConvertTo-Json -Depth 100 |
-          Out-File "$env:SONAR_REPORT\Issues.json"
-
+            Write-Host "Issues exported successfully."
+        }
+        catch
+        {
+            Write-Host ""
+            Write-Host "Unable to export Issues."
+            Write-Host $_.Exception.Message
+            throw
+        }
+    
+        ##################################################
+        # Verify Files
+        ##################################################
+    
+        Write-Host ""
+        Write-Host "Generated Files"
+        Write-Host "========================"
+    
+        Get-ChildItem "$env:SONAR_REPORT"
+    
+        Write-Host ""
+        Write-Host "Sonar Report Export Completed Successfully"
+    
     ####################################################
     # Generate Sonar HTML Report
     ####################################################
