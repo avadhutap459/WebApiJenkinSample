@@ -139,7 +139,16 @@ jobs:
     # Generate Sonar HTML Report
     ####################################################
     - name: Generate Sonar HTML Report
+      shell: powershell
       run: |
+    
+        if (!(Test-Path "$env:SONAR_REPORT"))
+        {
+            New-Item `
+                -ItemType Directory `
+                -Path "$env:SONAR_REPORT" `
+                -Force | Out-Null
+        }
     
         $html = @"
     
@@ -180,35 +189,17 @@ jobs:
     
         <table>
     
-            <tr>
-                <th>Project</th>
-                <td>WebApi</td>
-            </tr>
+        <tr><th>Project</th><td>WebApi</td></tr>
     
-            <tr>
-                <th>Quality Gate</th>
-                <td>Passed</td>
-            </tr>
+        <tr><th>Quality Gate</th><td>Passed</td></tr>
     
-            <tr>
-                <th>Build Number</th>
-                <td>${{ github.run_number }}</td>
-            </tr>
+        <tr><th>Build Number</th><td>${{ github.run_number }}</td></tr>
     
-            <tr>
-                <th>Repository</th>
-                <td>${{ github.repository }}</td>
-            </tr>
+        <tr><th>Repository</th><td>${{ github.repository }}</td></tr>
     
-            <tr>
-                <th>Branch</th>
-                <td>${{ github.ref_name }}</td>
-            </tr>
+        <tr><th>Branch</th><td>${{ github.ref_name }}</td></tr>
     
-            <tr>
-                <th>Build Date</th>
-                <td>$(Get-Date)</td>
-            </tr>
+        <tr><th>Build Date</th><td>$(Get-Date)</td></tr>
     
         </table>
     
@@ -218,7 +209,9 @@ jobs:
     
         "@
     
-        $html | Out-File "$env:SONAR_REPORT\SonarReport.html"    
+        $html | Out-File `
+            "$env:SONAR_REPORT\SonarReport.html" `
+            -Encoding UTF8  
   
     ####################################################
     # Generate PDF Report
