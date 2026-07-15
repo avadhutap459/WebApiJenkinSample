@@ -155,7 +155,7 @@ jobs:
     
         $Token="${{ secrets.SONAR_TOKEN }}"
     
-        $pair=$Token + ":"
+        $pair = "$($Token):"
     
         $base64=[Convert]::ToBase64String(
             [System.Text.Encoding]::ASCII.GetBytes($pair)
@@ -165,11 +165,11 @@ jobs:
         # Export Metrics
         ##################################################
     
-        Invoke-RestMethod `
-          -Uri "${{ secrets.SONAR_HOST_URL }}/api/measures/component?component=WebApi&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density,reliability_rating,security_rating,sqale_rating,ncloc"
-    
-          -Headers @{
-              Authorization="Basic $base64"
+           Invoke-RestMethod `
+            -Uri "${{ secrets.SONAR_HOST_URL }}/api/measures/component?component=WebApi&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density,reliability_rating,security_rating,sqale_rating,ncloc" `
+            -Method Get `
+            -Headers @{
+                Authorization = "Basic $base64"
           } |
           ConvertTo-Json -Depth 50 |
           Out-File "$env:SONAR_REPORT\Metrics.json"
