@@ -107,34 +107,34 @@ jobs:
     ####################################################
     
     - name: Check Sonar Quality Gate
-    
       shell: powershell
-    
       run: |
     
         $Token = "${{ secrets.SONAR_TOKEN }}"
-        $Host = "${{ secrets.SONAR_HOST_URL }}"
+        $SonarHost = "${{ secrets.SONAR_HOST_URL }}"
     
         $pair = $Token + ":"
-        $base64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
+    
+        $base64 = [Convert]::ToBase64String(
+            [System.Text.Encoding]::ASCII.GetBytes($pair)
+        )
     
         Write-Host "Waiting for Sonar analysis..."
-    
         Start-Sleep -Seconds 20
     
         $result = Invoke-RestMethod `
-          -Uri "$Host/api/qualitygates/project_status?projectKey=WebApi" `
-          -Headers @{
-              Authorization = "Basic $base64"
-          }
+            -Uri "$SonarHost/api/qualitygates/project_status?projectKey=WebApi" `
+            -Headers @{
+                Authorization = "Basic $base64"
+            }
     
         Write-Host "Quality Gate Status: $($result.projectStatus.status)"
     
-        if($result.projectStatus.status -ne "OK")
+        if ($result.projectStatus.status -ne "OK")
         {
             throw "Quality Gate Failed"
         }
-
+    
     ####################################################
     # Export Sonar Report
     ####################################################
