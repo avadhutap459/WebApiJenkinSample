@@ -61,8 +61,8 @@ jobs:
     
         dotnet sonarscanner begin `
           /k:"WebApi" `
-          /d:sonar.host.url="http://3.110.161.22" `
-          /d:sonar.token="sqp_0913fb0bf42e02716c50db872938b3bd54adba53" `
+          /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}" `
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
           /d:sonar.cs.vstest.reportsPaths="$env:TEST_REPORT\*.trx" `
           /d:sonar.cs.opencover.reportsPaths="$env:COVERAGE_REPORT\coverage.opencover.xml"
     
@@ -114,9 +114,9 @@ jobs:
     
       env:
     
-        SONAR_HOST_URL: http://3.110.161.22
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
     
-        SONAR_TOKEN: sqp_0913fb0bf42e02716c50db872938b3bd54adba53
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     ####################################################
     # Export Sonar Report
