@@ -136,258 +136,95 @@ jobs:
         }
 
     ####################################################
-    # Export Sonar Reports
-    ####################################################
-    
-    - name: Export Sonar Reports
-      shell: powershell
-      run: |
-    
-        ##################################################
-        # Create Sonar Report Folder
-        ##################################################
-    
-        if (Test-Path "$env:SONAR_REPORT")
-        {
-            Remove-Item "$env:SONAR_REPORT\*" `
-                -Recurse `
-                -Force `
-                -ErrorAction SilentlyContinue
-        }
-        else
-        {
-            New-Item `
-                -ItemType Directory `
-                -Path "$env:SONAR_REPORT" | Out-Null
-        }
-    
-        ##################################################
-        # Authentication
-        ##################################################
-    
-        $Token = "${{ secrets.SONAR_TOKEN }}"
-        $SonarUrl = "${{ secrets.SONAR_HOST_URL }}"
-    
-        $Pair = "$($Token):"
-    
-        $Base64 = [Convert]::ToBase64String(
-            [System.Text.Encoding]::ASCII.GetBytes($Pair)
-        )
-    
-        $Headers = @{
-            Authorization = "Basic $Base64"
-        }
-    
-        ##################################################
-        # Debug Information
-        ##################################################
-    
-        Write-Host ""
-        Write-Host "========================================="
-        Write-Host "Sonar URL : $SonarUrl"
-        Write-Host "Token Length : $($Token.Length)"
-        Write-Host "========================================="
-        Write-Host ""
-    
-        ##################################################
-        # Validate Authentication
-        ##################################################
-    
-        try
-        {
-            $Auth = Invoke-RestMethod `
-                -Method Get `
-                -Uri "$SonarUrl/api/authentication/validate" `
-                -Headers $Headers
-    
-            Write-Host "Authentication Result:"
-            $Auth | ConvertTo-Json
-    
-            if($Auth.valid -ne $true)
-            {
-                throw "Sonar Authentication Failed."
-            }
-        }
-        catch
-        {
-            Write-Host ""
-            Write-Host "Authentication Error"
-            Write-Host $_.Exception.Message
-            throw
-        }
-    
-        ##################################################
-        # Verify Project Exists
-        ##################################################
-    
-        try
-        {
-            $Project = Invoke-RestMethod `
-                -Method Get `
-                -Uri "$SonarUrl/api/components/show?component=WebApi" `
-                -Headers $Headers
-    
-            Write-Host ""
-            Write-Host "Project Found : $($Project.component.key)"
-            Write-Host ""
-        }
-        catch
-        {
-            Write-Host ""
-            Write-Host "Project WebApi not found."
-            throw
-        }
-    
-        ##################################################
-        # Export Metrics
-        ##################################################
-    
-        try
-        {
-            Invoke-RestMethod `
-                -Method Get `
-                -Uri "$SonarUrl/api/measures/component?component=WebApi&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density,reliability_rating,security_rating,sqale_rating,ncloc" `
-                -Headers $Headers |
-            ConvertTo-Json -Depth 100 |
-            Out-File `
-                "$env:SONAR_REPORT\Metrics.json" `
-                -Encoding UTF8
-    
-            Write-Host "Metrics exported successfully."
-        }
-        catch
-        {
-            Write-Host ""
-            Write-Host "Unable to export Metrics."
-            Write-Host $_.Exception.Message
-            throw
-        }
-    
-        ##################################################
-        # Export Issues
-        ##################################################
-    
-        try
-        {
-            Invoke-RestMethod `
-                -Method Get `
-                -Uri "$SonarUrl/api/issues/search?componentKeys=WebApi&ps=500" `
-                -Headers $Headers |
-            ConvertTo-Json -Depth 100 |
-            Out-File `
-                "$env:SONAR_REPORT\Issues.json" `
-                -Encoding UTF8
-    
-            Write-Host "Issues exported successfully."
-        }
-        catch
-        {
-            Write-Host ""
-            Write-Host "Unable to export Issues."
-            Write-Host $_.Exception.Message
-            throw
-        }
-    
-        ##################################################
-        # Verify Files
-        ##################################################
-    
-        Write-Host ""
-        Write-Host "Generated Files"
-        Write-Host "========================"
-    
-        Get-ChildItem "$env:SONAR_REPORT"
-    
-        Write-Host ""
-        Write-Host "Sonar Report Export Completed Successfully"
-    
-    ####################################################
     # Generate Sonar HTML Report
     ####################################################
-    
     - name: Generate Sonar HTML Report
-    
       run: |
     
-          $metrics = Get-Content `
-          "$env:SONAR_REPORT\Metrics.json" |
-          ConvertFrom-Json
+        $html = @"
     
-          $html=@"
+        <html>
     
-                  <html>
-                  
-                  <head>
-                  
-                  <title>SonarQube Report</title>
-                  
-                  <style>
-                  
-                  body{
-                  font-family:Arial;
-                  margin:40px;
-                  }
-                  
-                  table{
-                  width:80%;
-                  border-collapse:collapse;
-                  }
-                  
-                  th,td{
-                  border:1px solid black;
-                  padding:10px;
-                  }
-                  
-                  th{
-                  background:#efefef;
-                  }
-                  
-                  </style>
-                  
-                  </head>
-                  
-                  <body>
-                  
-                  <h1>SonarQube Analysis Report</h1>
-                  
-                  <table>
-                  
-                  <tr>
-                  
-                  <th>Metric</th>
-                  
-                  <th>Value</th>
-                  
-                  </tr>
-                  
-                  "@
-                  
-                  foreach($item in $metrics.component.measures)
-                  {
-                  
-                  $html += "<tr><td>$($item.metric)</td><td>$($item.value)</td></tr>"
-                  
-                  }
-                  
-                  $html += @"
-                  
-                  </table>
-                  
-                  </body>
-                  
-                  </html>
-                  
-                  "@
-                  
-          $html |
-          Out-File "$env:SONAR_REPORT\SonarReport.html"
-
+        <head>
+    
+        <title>SonarQube Report</title>
+    
+        <style>
+    
+        body{
+            font-family:Arial;
+            margin:40px;
+        }
+    
+        table{
+            border-collapse:collapse;
+            width:70%;
+        }
+    
+        td,th{
+            border:1px solid black;
+            padding:8px;
+        }
+    
+        th{
+            background:#efefef;
+        }
+    
+        </style>
+    
+        </head>
+    
+        <body>
+    
+        <h1>SonarQube Analysis Report</h1>
+    
+        <table>
+    
+            <tr>
+                <th>Project</th>
+                <td>WebApi</td>
+            </tr>
+    
+            <tr>
+                <th>Quality Gate</th>
+                <td>Passed</td>
+            </tr>
+    
+            <tr>
+                <th>Build Number</th>
+                <td>${{ github.run_number }}</td>
+            </tr>
+    
+            <tr>
+                <th>Repository</th>
+                <td>${{ github.repository }}</td>
+            </tr>
+    
+            <tr>
+                <th>Branch</th>
+                <td>${{ github.ref_name }}</td>
+            </tr>
+    
+            <tr>
+                <th>Build Date</th>
+                <td>$(Get-Date)</td>
+            </tr>
+    
+        </table>
+    
+        </body>
+    
+        </html>
+    
+        "@
+    
+        $html | Out-File "$env:SONAR_REPORT\SonarReport.html"    
+  
     ####################################################
     # Generate PDF Report
     ####################################################
     
     - name: Generate PDF Report
-    
       run: |
     
           & "C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe" `
@@ -399,7 +236,6 @@ jobs:
     ####################################################
     
     - name: Generate Coverage Report
-
       run: |
     
           reportgenerator `
