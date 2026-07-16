@@ -584,7 +584,17 @@ jobs:
     # Send Failure Email
     ####################################################
         - name: Send Failure Email
-          if: ${{ needs.deploy.result == 'failure' }}
+          if: |
+            ${{
+              needs.cleanup.result == 'failure' ||
+              needs.install.result == 'failure' ||
+              needs.build.result == 'failure' ||
+              needs.test.result == 'failure' ||
+              needs.code-quality.result == 'failure' ||
+              needs.publish.result == 'failure' ||
+              needs.verify-connection.result == 'failure' ||
+              needs.deploy.result == 'failure'
+            }}
           uses: dawidd6/action-send-mail@v3
           with:
                   server_address: ${{ secrets.SMTP_SERVER }}
