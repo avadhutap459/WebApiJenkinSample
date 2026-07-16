@@ -4,27 +4,23 @@ on:
   push:
     branches:
       - master
-
+defaults:
+  run:
+    shell: powershell
+env:
+  PUBLISH_FOLDER: D:\GitHubRunner\Publish
+  PACKAGE_FOLDER: D:\GitHubRunner\Packages
+  PACKAGE_NAME: WebApi.zip
+  REPORT_FOLDER: D:\GitHubRunner\Reports
+  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
 jobs:
   cleanup:
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
-      
-    steps:
-      - uses: actions/checkout@v4
     
+    steps:
+
       ####################################################
       # Checkout
       ####################################################
@@ -78,19 +74,7 @@ jobs:
     needs: cleanup
 
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    
     steps:
     - uses: actions/checkout@v4
     
@@ -128,6 +112,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Restore Packages
+      run: |
+        dotnet restore
     ####################################################
     # Sonar Begin
     ####################################################
@@ -150,21 +137,15 @@ jobs:
   test:
     needs: build
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    
     steps:
     - uses: actions/checkout@v4
+    - name: Restore Packages
+      run: |
+        dotnet restore
+    - name: Build Solution
+      run: |
+        dotnet build WebApi.sln --configuration Release --no-restore
     ####################################################
     # Unit Test + Coverage
     ####################################################
@@ -203,19 +184,7 @@ jobs:
   code-quality:
     needs: test
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    
     steps:
     - uses: actions/checkout@v4
     ####################################################
@@ -407,21 +376,12 @@ jobs:
   publish:
     needs: code-quality
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    
     steps:
     - uses: actions/checkout@v4
+    - name: Restore Packages
+      run: |
+        dotnet restore
     ####################################################
     # Publish
     ####################################################
@@ -462,19 +422,7 @@ jobs:
   verify-connection:
     needs: publish
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    
     steps:
     - uses: actions/checkout@v4
      ####################################################
@@ -528,19 +476,7 @@ jobs:
   deploy:
     needs: verify-connection
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    
     steps:
     - uses: actions/checkout@v4
     ####################################################
@@ -591,19 +527,7 @@ jobs:
     if: always()
   
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    
     steps:
     ####################################################
     # Send Success Email
