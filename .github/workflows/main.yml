@@ -50,6 +50,33 @@ jobs:
     - name: Restore NuGet Packages
       run: |
         dotnet restore
+
+    ####################################################
+    # Create Report Folders
+    ####################################################
+    
+    - name: Create Report Folders
+      run: |
+    
+        New-Item `
+          -ItemType Directory `
+          -Force `
+          -Path "$env:REPORT_FOLDER" | Out-Null
+    
+        New-Item `
+          -ItemType Directory `
+          -Force `
+          -Path "$env:SONAR_REPORT" | Out-Null
+    
+        New-Item `
+          -ItemType Directory `
+          -Force `
+          -Path "$env:COVERAGE_REPORT" | Out-Null
+    
+        New-Item `
+          -ItemType Directory `
+          -Force `
+          -Path "$env:TEST_REPORT" | Out-Null
     
     ####################################################
     # Sonar Begin
@@ -72,7 +99,7 @@ jobs:
 
     - name: Build Solution
       run: |
-        dotnet build --configuration Release --no-restore
+        dotnet build WebApi.sln --configuration Release --no-restore
 
     ####################################################
     # Unit Test + Coverage
@@ -82,7 +109,7 @@ jobs:
     
       run: |
     
-        dotnet test `
+        dotnet test .\WebApi.Test\WebApi.Test.csproj `
           --configuration Release `
           --no-build `
           --logger "trx;LogFileName=TestResults.trx" `
@@ -91,6 +118,32 @@ jobs:
           /p:CoverletOutput="$env:COVERAGE_REPORT\" `
           /p:CoverletOutputFormat=opencover
 
+    ####################################################
+    # Verify Test Results
+    ####################################################
+    
+    - name: Verify Test Results
+    
+      run: |
+    
+        Write-Host "TRX"
+        Get-ChildItem "$env:TEST_REPORT" -Recurse
+        Write-Host ""
+        Write-Host "Coverage"
+        Get-ChildItem "$env:COVERAGE_REPORT" -Recurse
+    
+    ####################################################
+    # Display Test Results
+    ####################################################
+    
+    - name: Display Test Files
+    
+      run: |
+    
+        Get-ChildItem `
+          "$env:TEST_REPORT" `
+          -Recurse  
+    
     ####################################################
     # Sonar End
     ####################################################
@@ -134,7 +187,17 @@ jobs:
         {
             throw "Quality Gate Failed"
         }
+        
+    ####################################################
+    # Verify Coverage File
+    ####################################################
+    - name: Verify Coverage File
 
+      run: |
+    
+        Test-Path "$env:COVERAGE_REPORT\coverage.opencover.xml"
+        Get-ChildItem "$env:COVERAGE_REPORT"
+        
     ####################################################
     # Generate Sonar HTML Report
     ####################################################
@@ -275,7 +338,7 @@ jobs:
       run: |
         Remove-Item "$env:PUBLISH_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
 
-        dotnet publish `
+        dotnet publish .\WebApi\WebApi.csproj `
           --configuration Release `
           --output "$env:PUBLISH_FOLDER"
 
