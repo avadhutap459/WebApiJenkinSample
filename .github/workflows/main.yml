@@ -6,11 +6,8 @@ on:
       - master
 
 jobs:
-
-  build-deploy:
-
+  cleanup:
     runs-on: self-hosted
-
     defaults:
       run:
         shell: powershell
@@ -24,20 +21,82 @@ jobs:
       SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
       COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
       TEST_REPORT: D:\GitHubRunner\Reports\TestResults
-
+      
     steps:
+      - uses: actions/checkout@v4
+    
+      ####################################################
+      # Checkout
+      ####################################################
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    ####################################################
-    # Checkout
-    ####################################################
+      ####################################################
+      # Create Report Folders
+      ####################################################
+      - name: Create Report Folders
+        run: |
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:REPORT_FOLDER" | Out-Null
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:SONAR_REPORT" | Out-Null
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:COVERAGE_REPORT" | Out-Null
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:TEST_REPORT" | Out-Null
 
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      ####################################################
+      # Cleanup Old Files
+      ####################################################
+      - name: Cleanup Old Files
+        shell: powershell
+        run: |
+      
+            Remove-Item D:\GitHubRunner\Publish\* -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item D:\GitHubRunner\Packages\* -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item D:\GitHubRunner\Reports\* -Recurse -Force -ErrorAction SilentlyContinue
+      
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Publish | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Packages | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\TestResults | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\Coverage | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\Sonar | Out-Null
+            
+  install:
+    needs: cleanup
 
-    ####################################################
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
+    
+     ####################################################
     # Verify SDK
     ####################################################
-
     - name: Verify .NET SDK
       run: |
         dotnet --info
@@ -46,46 +105,34 @@ jobs:
     ####################################################
     # Restore
     ####################################################
-
     - name: Restore NuGet Packages
       run: |
         dotnet restore
+        
+  build:
+    needs: install
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
 
-    ####################################################
-    # Create Report Folders
-    ####################################################
-    
-    - name: Create Report Folders
-      run: |
-    
-        New-Item `
-          -ItemType Directory `
-          -Force `
-          -Path "$env:REPORT_FOLDER" | Out-Null
-    
-        New-Item `
-          -ItemType Directory `
-          -Force `
-          -Path "$env:SONAR_REPORT" | Out-Null
-    
-        New-Item `
-          -ItemType Directory `
-          -Force `
-          -Path "$env:COVERAGE_REPORT" | Out-Null
-    
-        New-Item `
-          -ItemType Directory `
-          -Force `
-          -Path "$env:TEST_REPORT" | Out-Null
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
     
     ####################################################
     # Sonar Begin
     ####################################################
-    
     - name: Sonar Begin
-    
       run: |
-    
         dotnet sonarscanner begin `
           /k:"WebApi" `
           /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}" `
@@ -96,19 +143,33 @@ jobs:
     ####################################################
     # Build
     ####################################################
-
     - name: Build Solution
       run: |
         dotnet build WebApi.sln --configuration Release --no-restore
+        
+  test:
+    needs: build
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
 
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
     ####################################################
     # Unit Test + Coverage
     ####################################################
-    
     - name: Run Unit Tests
-    
       run: |
-    
         dotnet test .\WebApi.Test\WebApi.Test.csproj `
           --configuration Release `
           --no-build `
@@ -121,11 +182,8 @@ jobs:
     ####################################################
     # Verify Test Results
     ####################################################
-    
     - name: Verify Test Results
-    
       run: |
-    
         Write-Host "TRX"
         Get-ChildItem "$env:TEST_REPORT" -Recurse
         Write-Host ""
@@ -135,15 +193,31 @@ jobs:
     ####################################################
     # Display Test Results
     ####################################################
-    
     - name: Display Test Files
-    
       run: |
     
         Get-ChildItem `
           "$env:TEST_REPORT" `
           -Recurse  
-    
+          
+  code-quality:
+    needs: test
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
     ####################################################
     # Sonar End
     ####################################################
@@ -329,7 +403,25 @@ jobs:
           Compress-Archive `
               -Path "$env:REPORT_FOLDER\*" `
               -DestinationPath $ReportZip
-              
+
+  publish:
+    needs: code-quality
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
     ####################################################
     # Publish
     ####################################################
@@ -366,8 +458,26 @@ jobs:
       run: |
 
         Get-ChildItem "$env:PACKAGE_FOLDER"
-        
-    ####################################################
+
+  verify-connection:
+    needs: publish
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
+     ####################################################
     # Verify SSH
     ####################################################
     
@@ -414,7 +524,25 @@ jobs:
 
         ssh root@172.31.47.142 `
         "ls -lh /opt/ansible/artifacts/latest"
+        
+  deploy:
+    needs: verify-connection
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
 
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
     ####################################################
     # Deploy
     ####################################################
@@ -447,19 +575,41 @@ jobs:
         Write-Host "=================================="
         Write-Host "Deployment Completed Successfully"
         Write-Host "=================================="
-          
+ 
   notify:
+
+    needs:
+      - cleanup
+      - install
+      - build
+      - test
+      - code-quality
+      - publish
+      - verify-connection
+      - deploy
   
-    needs: build-deploy
     if: always()
+  
     runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
     steps:
-    
     ####################################################
     # Send Success Email
     ####################################################
         - name: Send Build Success Email
-          if: ${{ needs.build-deploy.result == 'success' }}
+          if: ${{ needs.deploy.result == 'success' }}
           uses: dawidd6/action-send-mail@v3
           with:
             server_address: ${{ secrets.SMTP_SERVER }}
@@ -500,7 +650,7 @@ jobs:
     # Send Failure Email
     ####################################################
         - name: Send Failure Email
-          if: ${{ needs.build-deploy.result == 'failure' }}
+          if: ${{ needs.deploy.result == 'failure' }}
           uses: dawidd6/action-send-mail@v3
           with:
                   server_address: ${{ secrets.SMTP_SERVER }}
@@ -528,3 +678,4 @@ jobs:
               
                     Workflow:
                     ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+ 
