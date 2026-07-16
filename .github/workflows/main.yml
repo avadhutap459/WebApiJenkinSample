@@ -472,11 +472,45 @@ jobs:
 
         ssh root@172.31.47.142 `
         "ls -lh /opt/ansible/artifacts/latest"
-        
-  deploy:
+  
+  approval-email:
     needs: verify-connection
     runs-on: self-hosted
-    
+  
+    steps:
+      - name: Send Approval Request
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+  
+          subject: "Production Deployment Approval Required"
+  
+          to: lead@company.com
+  
+          from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+  
+          secure: false
+  
+          body: |
+            Production deployment is ready.
+  
+            Repository : ${{ github.repository }}
+            Branch     : ${{ github.ref_name }}
+            Build      : #${{ github.run_number }}
+  
+            Please approve the deployment in GitHub Actions.
+  
+            Workflow:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}  
+            
+  deploy:
+    needs: approval-email
+    runs-on: self-hosted
+    environment:
+      name: production
     steps:
     - uses: actions/checkout@v4
     ####################################################
