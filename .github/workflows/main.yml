@@ -93,7 +93,7 @@ jobs:
       run: |
         dotnet restore
         
-  build:
+  build-test-sonar:
     needs: install
     runs-on: self-hosted
     defaults:
@@ -133,19 +133,6 @@ jobs:
     - name: Build Solution
       run: |
         dotnet build WebApi.sln --configuration Release --no-restore
-        
-  test:
-    needs: build
-    runs-on: self-hosted
-    
-    steps:
-    - uses: actions/checkout@v4
-    - name: Restore Packages
-      run: |
-        dotnet restore
-    - name: Build Solution
-      run: |
-        dotnet build WebApi.sln --configuration Release --no-restore
     ####################################################
     # Unit Test + Coverage
     ####################################################
@@ -180,14 +167,8 @@ jobs:
         Get-ChildItem `
           "$env:TEST_REPORT" `
           -Recurse  
-          
-  code-quality:
-    needs: test
-    runs-on: self-hosted
-    
-    steps:
-    - uses: actions/checkout@v4
-    ####################################################
+
+     ####################################################
     # Sonar End
     ####################################################
     
@@ -373,8 +354,9 @@ jobs:
               -Path "$env:REPORT_FOLDER\*" `
               -DestinationPath $ReportZip
 
+ 
   publish:
-    needs: code-quality
+    needs: build-test-sonar
     runs-on: self-hosted
     
     steps:
@@ -551,9 +533,7 @@ jobs:
     needs:
       - cleanup
       - install
-      - build
-      - test
-      - code-quality
+      - build-test-sonar
       - publish
       - verify-connection
       - deploy
@@ -571,9 +551,7 @@ jobs:
             ${{
               needs.cleanup.result == 'success' &&
               needs.install.result == 'success' &&
-              needs.build.result == 'success' &&
-              needs.test.result == 'success' &&
-              needs.code-quality.result == 'success' &&
+              needs.build-test-sonar.result == 'success' &&
               needs.publish.result == 'success' &&
               needs.verify-connection.result == 'success' &&
               needs.deploy.result == 'success'
@@ -622,9 +600,7 @@ jobs:
             ${{
               needs.cleanup.result == 'failure' ||
               needs.install.result == 'failure' ||
-              needs.build.result == 'failure' ||
-              needs.test.result == 'failure' ||
-              needs.code-quality.result == 'failure' ||
+              needs.build-test-sonar.result == 'failure' ||
               needs.publish.result == 'failure' ||
               needs.verify-connection.result == 'failure' ||
               needs.deploy.result == 'failure'
