@@ -447,79 +447,84 @@ jobs:
         Write-Host "=================================="
         Write-Host "Deployment Completed Successfully"
         Write-Host "=================================="
-
+          
+  notify:
+  
+    needs: build-deploy
+    if: always()
+    runs-on: self-hosted
+    steps:
+    
     ####################################################
     # Send Success Email
     ####################################################
+        - name: Send Build Success Email
+          if: ${{ needs.build-deploy.result == 'success' }}
+          uses: dawidd6/action-send-mail@v3
+          with:
+            server_address: ${{ secrets.SMTP_SERVER }}
+            server_port: ${{ secrets.SMTP_PORT }}
+        
+            username: ${{ secrets.SMTP_USERNAME }}
+            password: ${{ secrets.SMTP_PASSWORD }}
+        
+            subject: "Production Deployment Successful - WebApi"
+        
+            to: ${{ secrets.EMAIL_TO }}
+        
+            from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+        
+            secure: false
     
-    - name: Send Build Success Email
-      if: success()
-      uses: dawidd6/action-send-mail@v3
-      with:
-        server_address: ${{ secrets.SMTP_SERVER }}
-        server_port: ${{ secrets.SMTP_PORT }}
+            attachments: |
+              D:\GitHubRunner\Reports\Sonar\SonarReport.pdf
+              D:\GitHubRunner\Reports\Sonar\SonarReport.html
+              D:\GitHubRunner\Reports\Coverage\coverage.opencover.xml
+        
+            body: |
+              Production deployment completed successfully.
+        
+              Repository : ${{ github.repository }}
+              Branch     : ${{ github.ref_name }}
+              Build      : #${{ github.run_number }}
+        
+              Status     : SUCCESS
+        
+              Commit:
+              ${{ github.event.head_commit.message }}
+        
+              Workflow:
+              ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     
-        username: ${{ secrets.SMTP_USERNAME }}
-        password: ${{ secrets.SMTP_PASSWORD }}
-    
-        subject: "Production Deployment Successful - WebApi"
-    
-        to: ${{ secrets.EMAIL_TO }}
-    
-        from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
-    
-        secure: false
-
-        attachments: |
-          D:\GitHubRunner\Reports\Sonar\SonarReport.pdf
-          D:\GitHubRunner\Reports\Sonar\SonarReport.html
-          D:\GitHubRunner\Reports\Coverage\coverage.opencover.xml
-    
-        body: |
-          Production deployment completed successfully.
-    
-          Repository : ${{ github.repository }}
-          Branch     : ${{ github.ref_name }}
-          Build      : #${{ github.run_number }}
-    
-          Status     : SUCCESS
-    
-          Commit:
-          ${{ github.event.head_commit.message }}
-    
-          Workflow:
-          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
     ####################################################
     # Send Failure Email
     ####################################################
-    
-    - name: Send Failure Email
-      if: failure()
-      uses: dawidd6/action-send-mail@v3
-      with:
-        server_address: ${{ secrets.SMTP_SERVER }}
-        server_port: ${{ secrets.SMTP_PORT }}
-    
-        username: ${{ secrets.SMTP_USERNAME }}
-        password: ${{ secrets.SMTP_PASSWORD }}
-    
-        subject: "Production Deployment Failed - WebApi"
-    
-        to: ${{ secrets.EMAIL_TO }}
-    
-        from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
-    
-        secure: false
-    
-        body: |
-          Production deployment FAILED.
-    
-          Repository : ${{ github.repository }}
-          Branch     : ${{ github.ref_name }}
-          Build      : #${{ github.run_number }}
-    
-          Please check the workflow logs.
-    
-          Workflow:
-          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        - name: Send Failure Email
+          if: ${{ needs.build-deploy.result == 'failure' }}
+          uses: dawidd6/action-send-mail@v3
+          with:
+                  server_address: ${{ secrets.SMTP_SERVER }}
+                  server_port: ${{ secrets.SMTP_PORT }}
+              
+                  username: ${{ secrets.SMTP_USERNAME }}
+                  password: ${{ secrets.SMTP_PASSWORD }}
+              
+                  subject: "Production Deployment Failed - WebApi"
+              
+                  to: ${{ secrets.EMAIL_TO }}
+              
+                  from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+              
+                  secure: false
+              
+                  body: |
+                    Production deployment FAILED.
+              
+                    Repository : ${{ github.repository }}
+                    Branch     : ${{ github.ref_name }}
+                    Build      : #${{ github.run_number }}
+              
+                    Please check the workflow logs.
+              
+                    Workflow:
+                    ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
