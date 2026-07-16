@@ -470,7 +470,7 @@ jobs:
   
           subject: "Production Deployment Approval Required"
   
-          to: lead@company.com
+          to: avadhutap459@gmail.com
   
           from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
   
