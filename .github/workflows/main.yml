@@ -533,7 +533,17 @@ jobs:
     # Send Success Email
     ####################################################
         - name: Send Build Success Email
-          if: ${{ needs.deploy.result == 'success' }}
+          if: |
+            ${{
+              needs.cleanup.result == 'success' &&
+              needs.install.result == 'success' &&
+              needs.build.result == 'success' &&
+              needs.test.result == 'success' &&
+              needs.code-quality.result == 'success' &&
+              needs.publish.result == 'success' &&
+              needs.verify-connection.result == 'success' &&
+              needs.deploy.result == 'success'
+            }}
           uses: dawidd6/action-send-mail@v3
           with:
             server_address: ${{ secrets.SMTP_SERVER }}
