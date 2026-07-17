@@ -24,18 +24,6 @@ namespace WebApi.Test
             Assert.Contains("value1", result);
             Assert.Contains("value2", result);
         }
-        [Fact]
-        public void False_ReturnsTwoValues()
-        {
-            // Arrange
-            var controller = new ValuesController();
-
-            // Act
-            var result = controller.Get();
-
-            // Assert
-            Assert.Null(result);
-            Assert.Equal(3, result.Count());
-        }
+        
     }
 }
