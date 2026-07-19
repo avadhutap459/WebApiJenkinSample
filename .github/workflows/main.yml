@@ -227,7 +227,15 @@ jobs:
             }
     
         Write-Host "Quality Gate Status: $($result.projectStatus.status)"
-    
+        foreach($condition in $result.projectStatus.conditions)
+        {
+            Write-Host "-----------------------------------"
+            Write-Host "Metric     : $($condition.metricKey)"
+            Write-Host "Status     : $($condition.status)"
+            Write-Host "Actual     : $($condition.actualValue)"
+            Write-Host "Threshold  : $($condition.errorThreshold)"
+        }
+        
         if ($result.projectStatus.status -ne "OK")
         {
             throw "Quality Gate Failed"
@@ -470,6 +478,18 @@ jobs:
         powershell.exe `
           -ExecutionPolicy Bypass `
           -File D:\GitHubRunner\Scripts\CopyReportsToAnsible.ps1
+
+     ####################################################
+    # Copy Database Script
+    ####################################################
+    
+    - name: Copy Database Script To Ansible
+    
+      run: |
+    
+        powershell.exe `
+          -ExecutionPolicy Bypass `
+          -File D:\GitHubRunner\Scripts\CopyDatabaseScriptToAnsible.ps1
     
     ####################################################
     # Verify Copy
