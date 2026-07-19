@@ -115,7 +115,18 @@ jobs:
     - name: Restore Packages
       run: |
         dotnet restore
-        
+    ####################################################
+    # Sonar Begin
+    ####################################################
+    - name: Sonar Begin
+      run: |
+        dotnet sonarscanner begin `
+          /k:"WebApi" `
+          /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}" `
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
+          /d:sonar.cs.vstest.reportsPaths="$env:TEST_REPORT\*.trx" `
+          /d:sonar.cs.opencover.reportsPaths="$env:COVERAGE_REPORT\coverage.opencover.xml"
+    
     ####################################################
     # Build
     ####################################################
@@ -156,7 +167,51 @@ jobs:
         Get-ChildItem `
           "$env:TEST_REPORT" `
           -Recurse  
+
+     ####################################################
+    # Sonar End
+    ####################################################
     
+    - name: Sonar End
+    
+      run: |
+    
+        dotnet sonarscanner end `
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+    ####################################################
+    # Wait for Sonar Quality Gate
+    ####################################################
+    
+    - name: Check Sonar Quality Gate
+      shell: powershell
+      run: |
+    
+        $Token = "${{ secrets.SONAR_TOKEN }}"
+        $SonarHost = "${{ secrets.SONAR_HOST_URL }}"
+    
+        $pair = $Token + ":"
+    
+        $base64 = [Convert]::ToBase64String(
+            [System.Text.Encoding]::ASCII.GetBytes($pair)
+        )
+    
+        Write-Host "Waiting for Sonar analysis..."
+        Start-Sleep -Seconds 20
+    
+        $result = Invoke-RestMethod `
+            -Uri "$SonarHost/api/qualitygates/project_status?projectKey=WebApi" `
+            -Headers @{
+                Authorization = "Basic $base64"
+            }
+    
+        Write-Host "Quality Gate Status: $($result.projectStatus.status)"
+    
+        if ($result.projectStatus.status -ne "OK")
+        {
+            throw "Quality Gate Failed"
+        }
+        
     ####################################################
     # Verify Coverage File
     ####################################################
@@ -166,6 +221,95 @@ jobs:
     
         Test-Path "$env:COVERAGE_REPORT\coverage.opencover.xml"
         Get-ChildItem "$env:COVERAGE_REPORT"
+        
+    ####################################################
+    # Generate Sonar HTML Report
+    ####################################################
+    - name: Generate Sonar HTML Report
+      shell: powershell
+      run: |
+    
+        if (!(Test-Path "$env:SONAR_REPORT"))
+        {
+            New-Item `
+                -ItemType Directory `
+                -Path "$env:SONAR_REPORT" `
+                -Force | Out-Null
+        }
+    
+        $html = @"
+    
+        <html>
+    
+        <head>
+    
+        <title>SonarQube Report</title>
+    
+        <style>
+    
+        body{
+            font-family:Arial;
+            margin:40px;
+        }
+    
+        table{
+            border-collapse:collapse;
+            width:70%;
+        }
+    
+        td,th{
+            border:1px solid black;
+            padding:8px;
+        }
+    
+        th{
+            background:#efefef;
+        }
+    
+        </style>
+    
+        </head>
+    
+        <body>
+    
+        <h1>SonarQube Analysis Report</h1>
+    
+        <table>
+    
+        <tr><th>Project</th><td>WebApi</td></tr>
+    
+        <tr><th>Quality Gate</th><td>Passed</td></tr>
+    
+        <tr><th>Build Number</th><td>${{ github.run_number }}</td></tr>
+    
+        <tr><th>Repository</th><td>${{ github.repository }}</td></tr>
+    
+        <tr><th>Branch</th><td>${{ github.ref_name }}</td></tr>
+    
+        <tr><th>Build Date</th><td>$(Get-Date)</td></tr>
+    
+        </table>
+    
+        </body>
+    
+        </html>
+    
+        "@
+    
+        $html | Out-File `
+            "$env:SONAR_REPORT\SonarReport.html" `
+            -Encoding UTF8  
+  
+    ####################################################
+    # Generate PDF Report
+    ####################################################
+    
+    - name: Generate PDF Report
+      run: |
+    
+          & "C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe" `
+          "$env:SONAR_REPORT\SonarReport.html" `
+          "$env:SONAR_REPORT\SonarReport.pdf"
 
     ####################################################
     # Generate Coverage Report
