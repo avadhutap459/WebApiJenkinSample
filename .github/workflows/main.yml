@@ -382,7 +382,7 @@ jobs:
 
         Compress-Archive `
         -Path "$env:DATABASE_FOLDER\*" `
-        -DestinationPath "$env:PACKAGE_FOLDER\DatabaseScripts.zip" `
+        -DestinationPath "$env:PACKAGE_FOLDER\Database.zip" `
         -Force
 
     ####################################################
