@@ -1,0 +1,6 @@
+﻿CREATE TABLE tblEmployee
+(
+    Id INT IDENTITY PRIMARY KEY,
+    Name NVARCHAR(100),
+    Email NVARCHAR(200)
+);
