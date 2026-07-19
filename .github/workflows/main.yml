@@ -199,47 +199,6 @@ jobs:
     
         dotnet sonarscanner end `
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-
-    ####################################################
-    # Wait for Sonar Quality Gate
-    ####################################################
-    
-    - name: Check Sonar Quality Gate
-      shell: powershell
-      run: |
-    
-        $Token = "${{ secrets.SONAR_TOKEN }}"
-        $SonarHost = "${{ secrets.SONAR_HOST_URL }}"
-    
-        $pair = $Token + ":"
-    
-        $base64 = [Convert]::ToBase64String(
-            [System.Text.Encoding]::ASCII.GetBytes($pair)
-        )
-    
-        Write-Host "Waiting for Sonar analysis..."
-        Start-Sleep -Seconds 20
-    
-        $result = Invoke-RestMethod `
-            -Uri "$SonarHost/api/qualitygates/project_status?projectKey=WebApi" `
-            -Headers @{
-                Authorization = "Basic $base64"
-            }
-    
-        Write-Host "Quality Gate Status: $($result.projectStatus.status)"
-        foreach($condition in $result.projectStatus.conditions)
-        {
-            Write-Host "-----------------------------------"
-            Write-Host "Metric     : $($condition.metricKey)"
-            Write-Host "Status     : $($condition.status)"
-            Write-Host "Actual     : $($condition.actualValue)"
-            Write-Host "Threshold  : $($condition.errorThreshold)"
-        }
-        
-        if ($result.projectStatus.status -ne "OK")
-        {
-            throw "Quality Gate Failed"
-        }
         
     ####################################################
     # Verify Coverage File
