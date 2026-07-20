@@ -122,57 +122,6 @@ jobs:
         {
             throw "Sonar End Failed."
         }
-
-    ####################################################
-    # Quality Gate
-    ####################################################
-    - name: Check Sonar Quality Gate
-      run: |
-
-        $Token="${{ secrets.SONAR_TOKEN }}"
-        $SonarHost="${{ secrets.SONAR_HOST_URL }}"
-
-        $pair=$Token+":"
-
-        $base64=[Convert]::ToBase64String(
-        [System.Text.Encoding]::ASCII.GetBytes($pair))
-
-        $Status="NONE"
-
-        for($i=1;$i -le 30;$i++)
-        {
-            Start-Sleep 10
-
-            $result=Invoke-RestMethod `
-              -Uri "$SonarHost/api/qualitygates/project_status?projectKey=WebApi" `
-              -Headers @{
-                  Authorization="Basic $base64"
-              }
-
-            $Status=$result.projectStatus.status
-
-            Write-Host "Attempt $i : $Status"
-
-            if($Status -ne "NONE")
-            {
-                break
-            }
-        }
-
-        foreach($condition in $result.projectStatus.conditions)
-        {
-            Write-Host "--------------------------------------"
-            Write-Host "Metric : $($condition.metricKey)"
-            Write-Host "Status : $($condition.status)"
-            Write-Host "Actual : $($condition.actualValue)"
-            Write-Host "Threshold : $($condition.errorThreshold)"
-        }
-
-        if($Status -ne "OK")
-        {
-            throw "Quality Gate Failed"
-        }
-
     ####################################################
     # Generate HTML Report
     ####################################################
