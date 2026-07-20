@@ -9,6 +9,7 @@ namespace WebApi.Controllers
     [ApiController]
     public class EmployeeController : ControllerBase
     {
+    
         private readonly IDataRepository<Employee> _dataRepository;
         public EmployeeController(IDataRepository<Employee> dataRepository)
         {
