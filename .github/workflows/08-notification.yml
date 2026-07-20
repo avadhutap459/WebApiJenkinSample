@@ -1,115 +1,164 @@
-name: Production CI/CD
+name: 08 - Notification
+
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows:
+      - "06 - Production Deployment"
+    types:
+      - completed
+
 defaults:
   run:
     shell: powershell
-env:
-  PUBLISH_FOLDER: D:\GitHubRunner\Publish
-  PACKAGE_FOLDER: D:\GitHubRunner\Packages
-  PACKAGE_NAME: WebApi.zip
-  REPORT_FOLDER: D:\GitHubRunner\Reports
-  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
-  DATABASE_FOLDER: D:\GitHubRunner\Database
-  
+
 jobs:
-   notify:
-   
-    if: always()
-  
+  notify:
+
     runs-on: self-hosted
-    
+
     steps:
+
+    ####################################################
+    # Checkout Repository
+    ####################################################
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    ####################################################
+    # Verify Report Files
+    ####################################################
+    - name: Verify Reports
+      run: |
+
+        Write-Host "===== Report Files ====="
+
+        if(Test-Path "D:\GitHubRunner\Reports")
+        {
+            Get-ChildItem "D:\GitHubRunner\Reports" -Recurse
+        }
+
+        if(Test-Path "D:\GitHubRunner\Logs")
+        {
+            Get-ChildItem "D:\GitHubRunner\Logs" -Recurse
+        }
+
     ####################################################
     # Send Success Email
     ####################################################
-        - name: Send Build Success Email
-          if: |
-            ${{
-              needs.cleanup.result == 'success' &&
-              needs.install.result == 'success' &&
-              needs.build-test-sonar.result == 'success' &&
-              needs.publish.result == 'success' &&
-              needs.verify-connection.result == 'success' &&
-              needs.deploy.result == 'success'
-            }}
-          uses: dawidd6/action-send-mail@v3
-          with:
-            server_address: ${{ secrets.SMTP_SERVER }}
-            server_port: ${{ secrets.SMTP_PORT }}
-        
-            username: ${{ secrets.SMTP_USERNAME }}
-            password: ${{ secrets.SMTP_PASSWORD }}
-        
-            subject: "Production Deployment Successful - WebApi"
-        
-            to: ${{ secrets.EMAIL_TO }}
-        
-            from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
-        
-            secure: false
-    
-            attachments: |
-              D:\GitHubRunner\Reports\Sonar\SonarReport.pdf
-              D:\GitHubRunner\Reports\Sonar\SonarReport.html
-              D:\GitHubRunner\Reports\Coverage\coverage.opencover.xml
-        
-            body: |
-              Production deployment completed successfully.
-        
-              Repository : ${{ github.repository }}
-              Branch     : ${{ github.ref_name }}
-              Build      : #${{ github.run_number }}
-        
-              Status     : SUCCESS
-        
-              Commit:
-              ${{ github.event.head_commit.message }}
-        
-              Workflow:
-              ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    
+    - name: Send Success Email
+
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+      uses: dawidd6/action-send-mail@v3
+
+      with:
+
+        server_address: ${{ secrets.SMTP_SERVER }}
+        server_port: ${{ secrets.SMTP_PORT }}
+
+        username: ${{ secrets.SMTP_USERNAME }}
+        password: ${{ secrets.SMTP_PASSWORD }}
+
+        secure: false
+
+        from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+
+        to: ${{ secrets.EMAIL_TO }}
+
+        subject: Production Deployment Successful - WebApi
+
+        attachments: |
+
+          D:\GitHubRunner\Reports\Sonar\SonarReport.pdf
+          D:\GitHubRunner\Reports\Sonar\SonarReport.html
+          D:\GitHubRunner\Reports\Coverage\coverage.opencover.xml
+          D:\GitHubRunner\Reports\TestResults\TestResults.trx
+          D:\GitHubRunner\Logs\Deployment.log
+          D:\GitHubRunner\Logs\Database.log
+
+        body: |
+
+          Production Deployment Completed Successfully.
+
+          =========================================
+
+          Repository :
+          ${{ github.repository }}
+
+          Branch :
+          ${{ github.event.workflow_run.head_branch }}
+
+          Build Number :
+          #${{ github.event.workflow_run.run_number }}
+
+          Status :
+          SUCCESS
+
+          Commit Message :
+
+          ${{ github.event.workflow_run.head_commit.message }}
+
+          Deployment Time :
+
+          ${{ github.event.workflow_run.updated_at }}
+
+          Workflow URL :
+
+          ${{ github.event.workflow_run.html_url }}
+
     ####################################################
     # Send Failure Email
     ####################################################
-        - name: Send Failure Email
-          if: |
-            ${{
-              needs.cleanup.result == 'failure' ||
-              needs.install.result == 'failure' ||
-              needs.build-test-sonar.result == 'failure' ||
-              needs.publish.result == 'failure' ||
-              needs.verify-connection.result == 'failure' ||
-              needs.deploy.result == 'failure'
-            }}
-          uses: dawidd6/action-send-mail@v3
-          with:
-                  server_address: ${{ secrets.SMTP_SERVER }}
-                  server_port: ${{ secrets.SMTP_PORT }}
-              
-                  username: ${{ secrets.SMTP_USERNAME }}
-                  password: ${{ secrets.SMTP_PASSWORD }}
-              
-                  subject: "Production Deployment Failed - WebApi"
-              
-                  to: ${{ secrets.EMAIL_TO }}
-              
-                  from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
-              
-                  secure: false
-              
-                  body: |
-                    Production deployment FAILED.
-              
-                    Repository : ${{ github.repository }}
-                    Branch     : ${{ github.ref_name }}
-                    Build      : #${{ github.run_number }}
-              
-                    Please check the workflow logs.
-              
-                    Workflow:
-                    ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    - name: Send Failure Email
+
+      if: ${{ github.event.workflow_run.conclusion != 'success' }}
+
+      uses: dawidd6/action-send-mail@v3
+
+      with:
+
+        server_address: ${{ secrets.SMTP_SERVER }}
+        server_port: ${{ secrets.SMTP_PORT }}
+
+        username: ${{ secrets.SMTP_USERNAME }}
+        password: ${{ secrets.SMTP_PASSWORD }}
+
+        secure: false
+
+        from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+
+        to: ${{ secrets.EMAIL_TO }}
+
+        subject: Production Deployment Failed - WebApi
+
+        body: |
+
+          Production Deployment FAILED.
+
+          =========================================
+
+          Repository :
+          ${{ github.repository }}
+
+          Branch :
+          ${{ github.event.workflow_run.head_branch }}
+
+          Build Number :
+          #${{ github.event.workflow_run.run_number }}
+
+          Status :
+          FAILED
+
+          Commit Message :
+
+          ${{ github.event.workflow_run.head_commit.message }}
+
+          Deployment Time :
+
+          ${{ github.event.workflow_run.updated_at }}
+
+          Workflow URL :
+
+          ${{ github.event.workflow_run.html_url }}
+
+          Please check the workflow logs for details.
