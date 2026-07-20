@@ -1,1 +1,91 @@
+name: Production CI/CD
+on:
+  push:
+    branches:
+      - master
+defaults:
+  run:
+    shell: powershell
+env:
+  PUBLISH_FOLDER: D:\GitHubRunner\Publish
+  PACKAGE_FOLDER: D:\GitHubRunner\Packages
+  PACKAGE_NAME: WebApi.zip
+  REPORT_FOLDER: D:\GitHubRunner\Reports
+  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+  DATABASE_FOLDER: D:\GitHubRunner\Database
+  
+jobs:
+  test-sonar:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
 
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
+    - name: Restore Packages
+      run: |
+        dotnet restore
+    ####################################################
+    # Publish
+    ####################################################
+
+    - name: Publish Application
+      run: |
+        Remove-Item "$env:PUBLISH_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+        dotnet publish .\WebApi\WebApi.csproj `
+          --configuration Release `
+          --output "$env:PUBLISH_FOLDER"
+          
+    ####################################################
+    # Copy Database Scripts
+    ####################################################
+    - name: Copy Database Scripts
+      run: |
+    
+          Copy-Item `
+            ".\DatabaseScript\*.sql" `
+            "$env:DATABASE_FOLDER" `
+            -Force
+            
+    ####################################################
+    # Zip Package
+    ####################################################
+
+    - name: Create Deployment Package
+      run: |
+
+        if(Test-Path "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME")
+        {
+            Remove-Item "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME" -Force
+        }
+
+        Compress-Archive `
+          -Path "$env:PUBLISH_FOLDER\*" `
+          -DestinationPath "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME"
+
+        Compress-Archive `
+        -Path "$env:DATABASE_FOLDER\*" `
+        -DestinationPath "$env:PACKAGE_FOLDER\Database.zip" `
+        -Force
+
+    ####################################################
+    # Verify Package
+    ####################################################
+
+    - name: Verify Package
+      run: |
+
+        Get-ChildItem "$env:PACKAGE_FOLDER"
