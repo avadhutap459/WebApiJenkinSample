@@ -1,1 +1,285 @@
+name: Production CI/CD
+on:
+  push:
+    branches:
+      - master
+defaults:
+  run:
+    shell: powershell
+env:
+  PUBLISH_FOLDER: D:\GitHubRunner\Publish
+  PACKAGE_FOLDER: D:\GitHubRunner\Packages
+  PACKAGE_NAME: WebApi.zip
+  REPORT_FOLDER: D:\GitHubRunner\Reports
+  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+  DATABASE_FOLDER: D:\GitHubRunner\Database
+  
+jobs:
+  test-sonar:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
 
+    env:
+      PUBLISH_FOLDER: D:\GitHubRunner\Publish
+      PACKAGE_FOLDER: D:\GitHubRunner\Packages
+      PACKAGE_NAME: WebApi.zip
+
+      REPORT_FOLDER: D:\GitHubRunner\Reports
+      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Restore Packages
+      run: |
+        dotnet restore
+    ####################################################
+    # Sonar Begin
+    ####################################################
+    - name: Sonar Begin
+      run: |
+        dotnet sonarscanner begin `
+          /k:"WebApi" `
+          /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}" `
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
+          /d:sonar.cs.vstest.reportsPaths="$env:TEST_REPORT\*.trx" `
+          /d:sonar.cs.opencover.reportsPaths="$env:COVERAGE_REPORT\coverage.opencover.xml"
+    
+    ####################################################
+    # Build
+    ####################################################
+    - name: Build Solution
+      run: |
+        dotnet build WebApi.sln --configuration Release --no-restore
+    ####################################################
+    # Unit Test + Coverage
+    ####################################################
+    - name: Run Unit Tests
+      run: |
+        dotnet test .\WebApi.Test\WebApi.Test.csproj `
+          --configuration Release `
+          --no-build `
+          --logger "trx;LogFileName=TestResults.trx" `
+          --results-directory "$env:TEST_REPORT" `
+          /p:CollectCoverage=true `
+          /p:CoverletOutput="$env:COVERAGE_REPORT\" `
+          /p:CoverletOutputFormat=opencover
+
+    ####################################################
+    # Verify Test Results
+    ####################################################
+    - name: Verify Test Results
+      run: |
+        Write-Host "TRX"
+        Get-ChildItem "$env:TEST_REPORT" -Recurse
+        Write-Host ""
+        Write-Host "Coverage"
+        Get-ChildItem "$env:COVERAGE_REPORT" -Recurse
+    
+    ####################################################
+    # Display Test Results
+    ####################################################
+    - name: Display Test Files
+      run: |
+    
+        Get-ChildItem `
+          "$env:TEST_REPORT" `
+          -Recurse  
+
+    ####################################################
+    # Sonar End
+    ####################################################
+    
+    - name: Sonar End
+    
+      run: |
+    
+        dotnet sonarscanner end `
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+    ####################################################
+    # Wait for Sonar Quality Gate
+    ####################################################
+    
+    - name: Check Sonar Quality Gate
+      shell: powershell
+      run: |
+    
+        $Token = "${{ secrets.SONAR_TOKEN }}"
+        $SonarHost = "${{ secrets.SONAR_HOST_URL }}"
+    
+        $pair = $Token + ":"
+    
+        $base64 = [Convert]::ToBase64String(
+            [System.Text.Encoding]::ASCII.GetBytes($pair)
+        )
+    
+        Write-Host "Waiting for Sonar analysis..."
+        Start-Sleep -Seconds 20
+    
+        $result = Invoke-RestMethod `
+            -Uri "$SonarHost/api/qualitygates/project_status?projectKey=WebApi" `
+            -Headers @{
+                Authorization = "Basic $base64"
+            }
+    
+        Write-Host "Quality Gate Status: $($result.projectStatus.status)"
+        foreach($condition in $result.projectStatus.conditions)
+        {
+            Write-Host "-----------------------------------"
+            Write-Host "Metric     : $($condition.metricKey)"
+            Write-Host "Status     : $($condition.status)"
+            Write-Host "Actual     : $($condition.actualValue)"
+            Write-Host "Threshold  : $($condition.errorThreshold)"
+        }
+        
+        if ($result.projectStatus.status -ne "OK")
+        {
+            throw "Quality Gate Failed"
+        }
+    ####################################################
+    # Verify Coverage File
+    ####################################################
+    - name: Verify Coverage File
+
+      run: |
+    
+        Test-Path "$env:COVERAGE_REPORT\coverage.opencover.xml"
+        Get-ChildItem "$env:COVERAGE_REPORT"
+        
+    ####################################################
+    # Generate Sonar HTML Report
+    ####################################################
+    - name: Generate Sonar HTML Report
+      shell: powershell
+      run: |
+    
+        if (!(Test-Path "$env:SONAR_REPORT"))
+        {
+            New-Item `
+                -ItemType Directory `
+                -Path "$env:SONAR_REPORT" `
+                -Force | Out-Null
+        }
+    
+        $html = @"
+    
+        <html>
+    
+        <head>
+    
+        <title>SonarQube Report</title>
+    
+        <style>
+    
+        body{
+            font-family:Arial;
+            margin:40px;
+        }
+    
+        table{
+            border-collapse:collapse;
+            width:70%;
+        }
+    
+        td,th{
+            border:1px solid black;
+            padding:8px;
+        }
+    
+        th{
+            background:#efefef;
+        }
+    
+        </style>
+    
+        </head>
+    
+        <body>
+    
+        <h1>SonarQube Analysis Report</h1>
+    
+        <table>
+    
+        <tr><th>Project</th><td>WebApi</td></tr>
+    
+        <tr><th>Quality Gate</th><td>Passed</td></tr>
+    
+        <tr><th>Build Number</th><td>${{ github.run_number }}</td></tr>
+    
+        <tr><th>Repository</th><td>${{ github.repository }}</td></tr>
+    
+        <tr><th>Branch</th><td>${{ github.ref_name }}</td></tr>
+    
+        <tr><th>Build Date</th><td>$(Get-Date)</td></tr>
+    
+        </table>
+    
+        </body>
+    
+        </html>
+    
+        "@
+    
+        $html | Out-File `
+            "$env:SONAR_REPORT\SonarReport.html" `
+            -Encoding UTF8  
+  
+    ####################################################
+    # Generate PDF Report
+    ####################################################
+    
+    - name: Generate PDF Report
+      run: |
+    
+          & "C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe" `
+          "$env:SONAR_REPORT\SonarReport.html" `
+          "$env:SONAR_REPORT\SonarReport.pdf"
+
+    ####################################################
+    # Generate Coverage Report
+    ####################################################
+    
+    - name: Generate Coverage Report
+      run: |
+    
+          reportgenerator `
+            -reports:"$env:COVERAGE_REPORT\coverage.opencover.xml" `
+            -targetdir:"$env:COVERAGE_REPORT\Html" `
+            -reporttypes:"Html;HtmlSummary"
+    
+    ####################################################
+    # Verify Reports
+    ####################################################
+    
+    - name: Verify Reports
+    
+      run: |
+    
+          Get-ChildItem `
+          "$env:REPORT_FOLDER" `
+          -Recurse
+
+    ####################################################
+    # Zip Reports
+    ####################################################
+    
+    - name: Zip Reports
+    
+      run: |
+    
+          $ReportZip="$env:PACKAGE_FOLDER\Reports.zip"
+    
+          if(Test-Path $ReportZip)
+          {
+              Remove-Item $ReportZip -Force
+          }
+    
+          Compress-Archive `
+              -Path "$env:REPORT_FOLDER\*" `
+              -DestinationPath $ReportZip
