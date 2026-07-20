@@ -17,7 +17,7 @@ env:
   DATABASE_FOLDER: D:\GitHubRunner\Database
   
 jobs:
-  checkout:
+  build:
     runs-on: self-hosted
     steps:
       ####################################################
@@ -25,16 +25,13 @@ jobs:
       ####################################################
       - name: Checkout Repository
         uses: actions/checkout@v4
-  cleanup:
-    needs: checkout
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
+
       ####################################################
       # Create Report Folders
       ####################################################
       - name: Create Report Folders
         run: |
+      
           New-Item `
             -ItemType Directory `
             -Force `
@@ -79,11 +76,6 @@ jobs:
             New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\Coverage | Out-Null
             New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\Sonar | Out-Null
             New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Database | Out-Null
-  restore:
-    needs: cleanup
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
       ####################################################
       # Verify SDK
       ####################################################
@@ -98,14 +90,14 @@ jobs:
       - name: Restore NuGet Packages
         run: |
           dotnet restore
-  build:
-    needs: restore
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
+  
       ####################################################
-      # Build
+      # Copy Database Scripts
       ####################################################
-      - name: Build Solution
+      - name: Copy Database Scripts
         run: |
-          dotnet build WebApi.sln --configuration Release --no-restore
+      
+            Copy-Item `
+              ".\DatabaseScript\*.sql" `
+              "$env:DATABASE_FOLDER" `
+              -Force
