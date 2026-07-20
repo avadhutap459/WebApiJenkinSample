@@ -3,7 +3,7 @@ name: 05 - Production Approval
 on:
   workflow_run:
     workflows:
-      - "04 - Copy Artifacts to Ansible"
+      - "01 - Build"
     types:
       - completed
 
