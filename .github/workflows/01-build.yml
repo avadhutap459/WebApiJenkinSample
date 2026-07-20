@@ -1,92 +1,157 @@
-name: Production CI/CD
+name: 01 - Build
+
 on:
   push:
     branches:
       - master
+
 defaults:
   run:
     shell: powershell
+
 env:
   PUBLISH_FOLDER: D:\GitHubRunner\Publish
   PACKAGE_FOLDER: D:\GitHubRunner\Packages
-  PACKAGE_NAME: WebApi.zip
   REPORT_FOLDER: D:\GitHubRunner\Reports
   SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
   COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
   TEST_REPORT: D:\GitHubRunner\Reports\TestResults
   DATABASE_FOLDER: D:\GitHubRunner\Database
-  
+
 jobs:
+
   build:
+
     runs-on: self-hosted
+
     steps:
-      ####################################################
-      # Checkout
-      ####################################################
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
-      ####################################################
-      # Create Report Folders
-      ####################################################
-      - name: Create Report Folders
-        run: |
-      
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path "$env:REPORT_FOLDER" | Out-Null
-      
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path "$env:SONAR_REPORT" | Out-Null
-      
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path "$env:COVERAGE_REPORT" | Out-Null
-      
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path "$env:TEST_REPORT" | Out-Null
+    ####################################################
+    # Checkout Repository
+    ####################################################
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path D:\GitHubRunner\Database | Out-Null
+    ####################################################
+    # Verify Repository
+    ####################################################
+    - name: Verify Repository
+      run: |
+        Write-Host ""
+        Write-Host "Repository Contents"
+        Get-ChildItem -Recurse
 
-      ####################################################
-      # Cleanup Old Files
-      ####################################################
-      - name: Cleanup Old Files
-        shell: powershell
-        run: |
-      
-            Remove-Item D:\GitHubRunner\Publish\* -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item D:\GitHubRunner\Packages\* -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item D:\GitHubRunner\Reports\* -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item D:\GitHubRunner\Database\* -Recurse -Force -ErrorAction SilentlyContinue
-        
-      
-            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Publish | Out-Null
-            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Packages | Out-Null
-            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\TestResults | Out-Null
-            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\Coverage | Out-Null
-            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Reports\Sonar | Out-Null
-            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\Database | Out-Null
-      ####################################################
-      # Verify SDK
-      ####################################################
-      - name: Verify .NET SDK
-        run: |
-          dotnet --info
-          dotnet --list-sdks
-  
-      ####################################################
-      # Restore
-      ####################################################
-      - name: Restore NuGet Packages
-        run: |
-          dotnet restore
+    ####################################################
+    # Cleanup Old Files
+    ####################################################
+    - name: Cleanup Runner Folders
+      run: |
+
+        Remove-Item "$env:PUBLISH_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:PACKAGE_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:REPORT_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:DATABASE_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+    ####################################################
+    # Create Runner Folders
+    ####################################################
+    - name: Create Runner Folders
+      run: |
+
+        New-Item -ItemType Directory -Force -Path $env:PUBLISH_FOLDER | Out-Null
+        New-Item -ItemType Directory -Force -Path $env:PACKAGE_FOLDER | Out-Null
+        New-Item -ItemType Directory -Force -Path $env:REPORT_FOLDER | Out-Null
+        New-Item -ItemType Directory -Force -Path $env:SONAR_REPORT | Out-Null
+        New-Item -ItemType Directory -Force -Path $env:COVERAGE_REPORT | Out-Null
+        New-Item -ItemType Directory -Force -Path $env:TEST_REPORT | Out-Null
+        New-Item -ItemType Directory -Force -Path $env:DATABASE_FOLDER | Out-Null
+
+    ####################################################
+    # Verify .NET SDK
+    ####################################################
+    - name: Verify .NET SDK
+      run: |
+
+        dotnet --info
+        dotnet --version
+        dotnet --list-sdks
+
+    ####################################################
+    # Verify Solution
+    ####################################################
+    - name: Verify Solution
+      run: |
+
+        if (!(Test-Path ".\WebApi.sln"))
+        {
+            throw "WebApi.sln not found."
+        }
+
+        Write-Host "Solution Found"
+
+    ####################################################
+    # Restore Packages
+    ####################################################
+    - name: Restore NuGet Packages
+      run: |
+
+        dotnet restore WebApi.sln
+
+        if($LASTEXITCODE -ne 0)
+        {
+            throw "NuGet Restore Failed."
+        }
+
+    ####################################################
+    # Copy Database Scripts
+    ####################################################
+    - name: Copy Database Scripts
+      run: |
+
+        if(Test-Path ".\DatabaseScript")
+        {
+            Copy-Item `
+                ".\DatabaseScript\*.sql" `
+                "$env:DATABASE_FOLDER" `
+                -Force
+
+            Write-Host "Database scripts copied successfully."
+        }
+        else
+        {
+            Write-Host "DatabaseScript folder not found."
+        }
+
+    ####################################################
+    # Verify Database Scripts
+    ####################################################
+    - name: Verify Database Scripts
+      run: |
+
+        Get-ChildItem "$env:DATABASE_FOLDER"
+
+    ####################################################
+    # Build Solution
+    ####################################################
+    - name: Build Solution
+      run: |
+
+        dotnet build WebApi.sln `
+            --configuration Release `
+            --no-restore
+
+        if($LASTEXITCODE -ne 0)
+        {
+            throw "Build Failed."
+        }
+
+    ####################################################
+    # Verify Build
+    ####################################################
+    - name: Verify Build
+      run: |
+
+        Write-Host ""
+        Write-Host "======================================"
+        Write-Host "Build Completed Successfully"
+        Write-Host "======================================"
