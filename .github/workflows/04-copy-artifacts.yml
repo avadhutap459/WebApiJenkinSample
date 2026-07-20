@@ -1,86 +1,171 @@
-name: Production CI/CD
+name: 04 - Copy Artifacts to Ansible
+
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows:
+      - "03 - Package"
+    types:
+      - completed
+
 defaults:
   run:
     shell: powershell
+
 env:
-  PUBLISH_FOLDER: D:\GitHubRunner\Publish
   PACKAGE_FOLDER: D:\GitHubRunner\Packages
-  PACKAGE_NAME: WebApi.zip
   REPORT_FOLDER: D:\GitHubRunner\Reports
-  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
-  DATABASE_FOLDER: D:\GitHubRunner\Database
-  
+
+  ANSIBLE_SERVER: root@172.31.37.164
+  SSH_KEY: C:\Users\Administrator\.ssh\id_rsa
+
 jobs:
+
   copy-artifacts:
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
 
     steps:
-    - uses: actions/checkout@v4
+
     ####################################################
-    # Verify SSH
+    # Checkout
     ####################################################
-    
-    - name: Test SSH
-      shell: powershell
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    ####################################################
+    # Download Package Artifacts
+    ####################################################
+    - name: Download Deployment Packages
+      uses: actions/download-artifact@v4
+      with:
+        name: DeploymentPackages
+        path: D:\GitHubRunner\Packages
+
+    ####################################################
+    # Verify Package Files
+    ####################################################
+    - name: Verify Package Files
       run: |
+
+        if (!(Test-Path "$env:PACKAGE_FOLDER\WebApi.zip"))
+        {
+            throw "WebApi.zip not found."
+        }
+
+        if (!(Test-Path "$env:PACKAGE_FOLDER\Database.zip"))
+        {
+            throw "Database.zip not found."
+        }
+
+        Get-ChildItem "$env:PACKAGE_FOLDER"
+
+    ####################################################
+    # Verify Reports
+    ####################################################
+    - name: Verify Reports
+      run: |
+
+        if (!(Test-Path "$env:PACKAGE_FOLDER\Reports.zip"))
+        {
+            throw "Reports.zip not found."
+        }
+
+    ####################################################
+    # Test SSH Connectivity
+    ####################################################
+    - name: Test SSH Connection
+      run: |
+
         ssh `
           -v `
-          -i C:\Users\Administrator\.ssh\id_rsa `
+          -i "$env:SSH_KEY" `
           -o BatchMode=yes `
           -o StrictHostKeyChecking=no `
-          root@172.31.37.164 `
-          "hostname"
+          $env:ANSIBLE_SERVER `
+          "hostname && whoami && pwd"
 
     ####################################################
-    # Copy Package to Ansible
+    # Copy Web Package
     ####################################################
-
-    - name: Copy Package to Ansible Server
+    - name: Copy WebApi Package
       run: |
 
         powershell.exe `
-        -ExecutionPolicy Bypass `
-        -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
+          -ExecutionPolicy Bypass `
+          -File D:\GitHubRunner\Scripts\CopyToAnsible.ps1
+
+        if($LASTEXITCODE -ne 0)
+        {
+            throw "WebApi package copy failed."
+        }
 
     ####################################################
-    # Copy Sonar Reports
+    # Copy Reports
     ####################################################
-    
     - name: Copy Sonar Reports
-    
       run: |
-    
+
         powershell.exe `
           -ExecutionPolicy Bypass `
           -File D:\GitHubRunner\Scripts\CopyReportsToAnsible.ps1
 
-     ####################################################
-    # Copy Database Script
+        if($LASTEXITCODE -ne 0)
+        {
+            throw "Reports copy failed."
+        }
+
     ####################################################
-    
-    - name: Copy Database Script To Ansible
-    
+    # Copy Database Package
+    ####################################################
+    - name: Copy Database Package
       run: |
-    
+
         powershell.exe `
           -ExecutionPolicy Bypass `
           -File D:\GitHubRunner\Scripts\CopyDatabaseScriptToAnsible.ps1
-    
-    ####################################################
-    # Verify Copy
-    ####################################################
 
-    - name: Verify Package on Ansible
+        if($LASTEXITCODE -ne 0)
+        {
+            throw "Database package copy failed."
+        }
+
+    ####################################################
+    # Verify Files on Ansible
+    ####################################################
+    - name: Verify Files on Ansible
       run: |
 
-        ssh root@172.31.37.164 `
-        "ls -lh /opt/ansible/artifacts/latest"
+        ssh `
+          -i "$env:SSH_KEY" `
+          -o StrictHostKeyChecking=no `
+          $env:ANSIBLE_SERVER `
+          "
+          echo '===== Web Package ====='
+          ls -lh /opt/ansible/artifacts/latest
+
+          echo ''
+          echo '===== Database ====='
+          ls -lh /opt/ansible/artifacts/Database/latest
+
+          echo ''
+          echo '===== Reports ====='
+          ls -lh /opt/ansible/reports/latest
+          "
+
+    ####################################################
+    # Deployment Summary
+    ####################################################
+    - name: Copy Summary
+      run: |
+
+        Write-Host ""
+        Write-Host "==========================================="
+        Write-Host "Artifacts copied successfully to Ansible"
+        Write-Host "==========================================="
+        Write-Host "WebApi.zip"
+        Write-Host "Database.zip"
+        Write-Host "Reports.zip"
+        Write-Host "Destination Server : 172.31.37.164"
+        Write-Host "==========================================="
