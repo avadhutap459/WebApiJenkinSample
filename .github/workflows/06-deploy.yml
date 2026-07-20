@@ -1,1 +1,76 @@
+name: Production CI/CD
+on:
+  push:
+    branches:
+      - master
+defaults:
+  run:
+    shell: powershell
+env:
+  PUBLISH_FOLDER: D:\GitHubRunner\Publish
+  PACKAGE_FOLDER: D:\GitHubRunner\Packages
+  PACKAGE_NAME: WebApi.zip
+  REPORT_FOLDER: D:\GitHubRunner\Reports
+  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
+  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
+  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
+  DATABASE_FOLDER: D:\GitHubRunner\Database
+  
+jobs:
+   wait-for-deployment-time:
+    runs-on: self-hosted
+    steps:
+    - name: Wait until 10 PM
+      shell: powershell
+      run: |
+  
+        $TargetHour = 22
+  
+        while ((Get-Date).Hour -lt $TargetHour)
+        {
+            Write-Host "Current Time : $(Get-Date)"
+            Write-Host "Waiting for deployment window..."
+  
+            Start-Sleep -Seconds 60
+        }
+  
+        Write-Host "Deployment window started."                 
+   deploy:
+    needs: wait-for-deployment-time
+    runs-on: self-hosted
+    environment:
+      name: production
+    steps:
+    - uses: actions/checkout@v4
+    ####################################################
+    # Deploy
+    ####################################################
 
+    - name: Execute Ansible Deployment
+      run: |
+
+        powershell.exe `
+        -ExecutionPolicy Bypass `
+        -File D:\GitHubRunner\Scripts\Deploy.ps1
+
+    ####################################################
+    # Health Check
+    ####################################################
+
+    - name: Health Check
+      run: |
+
+        ssh root@172.31.37.164 `
+        "cd /opt/ansible && sudo ansible-playbook playbooks/healthcheck.yml"
+
+    ####################################################
+    # Finished
+    ####################################################
+
+    - name: Deployment Completed
+      run: |
+
+        Write-Host ""
+        Write-Host "=================================="
+        Write-Host "Deployment Completed Successfully"
+        Write-Host "=================================="
