@@ -17,7 +17,7 @@ env:
   DATABASE_FOLDER: D:\GitHubRunner\Database
   
 jobs:
-  test-sonar:
+  packages:
     runs-on: self-hosted
     defaults:
       run:
