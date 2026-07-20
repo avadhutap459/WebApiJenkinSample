@@ -22,16 +22,6 @@ jobs:
     defaults:
       run:
         shell: powershell
-
-    env:
-      PUBLISH_FOLDER: D:\GitHubRunner\Publish
-      PACKAGE_FOLDER: D:\GitHubRunner\Packages
-      PACKAGE_NAME: WebApi.zip
-
-      REPORT_FOLDER: D:\GitHubRunner\Reports
-      SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-      COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-      TEST_REPORT: D:\GitHubRunner\Reports\TestResults
     steps:
     - uses: actions/checkout@v4
     - name: Restore Packages
