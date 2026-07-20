@@ -90,14 +90,3 @@ jobs:
       - name: Restore NuGet Packages
         run: |
           dotnet restore
-  
-      ####################################################
-      # Copy Database Scripts
-      ####################################################
-      - name: Copy Database Scripts
-        run: |
-      
-            Copy-Item `
-              ".\DatabaseScript\*.sql" `
-              "$env:DATABASE_FOLDER" `
-              -Force
