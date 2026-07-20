@@ -1,81 +1,229 @@
-name: Production CI/CD
+name: 03 - Package
+
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows:
+      - "02 - Test, Sonar & Reports"
+    types:
+      - completed
+
 defaults:
   run:
     shell: powershell
+
 env:
   PUBLISH_FOLDER: D:\GitHubRunner\Publish
   PACKAGE_FOLDER: D:\GitHubRunner\Packages
   PACKAGE_NAME: WebApi.zip
-  REPORT_FOLDER: D:\GitHubRunner\Reports
-  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
   DATABASE_FOLDER: D:\GitHubRunner\Database
-  
-jobs:
-  packages:
-    runs-on: self-hosted
-    defaults:
-      run:
-        shell: powershell
-    steps:
-    - uses: actions/checkout@v4
-    - name: Restore Packages
-      run: |
-        dotnet restore
-    ####################################################
-    # Publish
-    ####################################################
 
+jobs:
+
+  package:
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    runs-on: self-hosted
+
+    steps:
+
+    ####################################################
+    # Checkout Repository
+    ####################################################
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    ####################################################
+    # Restore Packages
+    ####################################################
+    - name: Restore NuGet Packages
+      run: |
+
+        dotnet restore WebApi.sln
+
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "NuGet Restore Failed."
+        }
+
+    ####################################################
+    # Create Required Folders
+    ####################################################
+    - name: Create Package Folders
+      run: |
+
+        New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:PUBLISH_FOLDER" | Out-Null
+
+        New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:PACKAGE_FOLDER" | Out-Null
+
+        New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:DATABASE_FOLDER" | Out-Null
+
+    ####################################################
+    # Publish Application
+    ####################################################
     - name: Publish Application
       run: |
-        Remove-Item "$env:PUBLISH_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
 
-        dotnet publish .\WebApi\WebApi.csproj `
-          --configuration Release `
-          --output "$env:PUBLISH_FOLDER"
-          
+        Remove-Item `
+            "$env:PUBLISH_FOLDER\*" `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+        dotnet publish `
+            .\WebApi\WebApi.csproj `
+            --configuration Release `
+            --output "$env:PUBLISH_FOLDER"
+
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "Publish Failed."
+        }
+
+    ####################################################
+    # Verify Publish
+    ####################################################
+    - name: Verify Publish
+      run: |
+
+        $Files = Get-ChildItem "$env:PUBLISH_FOLDER"
+
+        if ($Files.Count -eq 0)
+        {
+            throw "Publish folder is empty."
+        }
+
+        Write-Host "Publish completed successfully."
+
     ####################################################
     # Copy Database Scripts
     ####################################################
     - name: Copy Database Scripts
       run: |
-    
-          Copy-Item `
+
+        if (!(Test-Path ".\DatabaseScript"))
+        {
+            throw "DatabaseScript folder not found."
+        }
+
+        Copy-Item `
             ".\DatabaseScript\*.sql" `
             "$env:DATABASE_FOLDER" `
             -Force
-            
-    ####################################################
-    # Zip Package
-    ####################################################
 
-    - name: Create Deployment Package
+    ####################################################
+    # Verify SQL Files
+    ####################################################
+    - name: Verify SQL Files
+      run: |
+
+        $SqlFiles = Get-ChildItem `
+            "$env:DATABASE_FOLDER\*.sql"
+
+        if ($SqlFiles.Count -eq 0)
+        {
+            throw "No SQL files found."
+        }
+
+        Write-Host ""
+        Write-Host "Database Scripts"
+
+        $SqlFiles | Format-Table Name,Length
+
+    ####################################################
+    # Remove Old ZIP Files
+    ####################################################
+    - name: Remove Existing Packages
       run: |
 
         if(Test-Path "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME")
         {
-            Remove-Item "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME" -Force
+            Remove-Item `
+                "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME" `
+                -Force
         }
 
-        Compress-Archive `
-          -Path "$env:PUBLISH_FOLDER\*" `
-          -DestinationPath "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME"
-
-        Compress-Archive `
-        -Path "$env:DATABASE_FOLDER\*" `
-        -DestinationPath "$env:PACKAGE_FOLDER\Database.zip" `
-        -Force
+        if(Test-Path "$env:PACKAGE_FOLDER\Database.zip")
+        {
+            Remove-Item `
+                "$env:PACKAGE_FOLDER\Database.zip" `
+                -Force
+        }
 
     ####################################################
-    # Verify Package
+    # Create Web Package
     ####################################################
-
-    - name: Verify Package
+    - name: Create Web Package
       run: |
 
-        Get-ChildItem "$env:PACKAGE_FOLDER"
+        Compress-Archive `
+            -Path "$env:PUBLISH_FOLDER\*" `
+            -DestinationPath "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME"
+
+    ####################################################
+    # Create Database Package
+    ####################################################
+    - name: Create Database Package
+      run: |
+
+        Compress-Archive `
+            -Path "$env:DATABASE_FOLDER\*" `
+            -DestinationPath "$env:PACKAGE_FOLDER\Database.zip"
+
+    ####################################################
+    # Verify Packages
+    ####################################################
+    - name: Verify Packages
+      run: |
+
+        if (!(Test-Path "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME"))
+        {
+            throw "WebApi.zip not created."
+        }
+
+        if (!(Test-Path "$env:PACKAGE_FOLDER\Database.zip"))
+        {
+            throw "Database.zip not created."
+        }
+
+        Write-Host ""
+        Write-Host "Deployment Packages"
+        Write-Host "==============================="
+
+        Get-ChildItem `
+            "$env:PACKAGE_FOLDER" `
+            | Format-Table Name,Length,LastWriteTime
+
+    ####################################################
+    # Upload Package Artifact
+    ####################################################
+    - name: Upload Deployment Packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: DeploymentPackages
+        path: |
+          D:\GitHubRunner\Packages\WebApi.zip
+          D:\GitHubRunner\Packages\Database.zip
+
+    ####################################################
+    # Package Summary
+    ####################################################
+    - name: Package Summary
+      run: |
+
+        Write-Host ""
+        Write-Host "======================================="
+        Write-Host "Package Creation Completed Successfully"
+        Write-Host "======================================="
+        Write-Host "Application : $env:PACKAGE_FOLDER\$env:PACKAGE_NAME"
+        Write-Host "Database    : $env:PACKAGE_FOLDER\Database.zip"
+        Write-Host "======================================="
