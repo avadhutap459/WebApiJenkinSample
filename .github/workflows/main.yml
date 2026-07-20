@@ -532,9 +532,31 @@ jobs:
   
             Workflow:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}  
-            
-  deploy:
+  
+  wait-for-deployment-time:
     needs: approval-email
+    runs-on: self-hosted
+  
+    steps:
+  
+    - name: Wait until 10 PM
+      shell: powershell
+      run: |
+  
+        $TargetHour = 22
+  
+        while ((Get-Date).Hour -lt $TargetHour)
+        {
+            Write-Host "Current Time : $(Get-Date)"
+            Write-Host "Waiting for deployment window..."
+  
+            Start-Sleep -Seconds 60
+        }
+  
+        Write-Host "Deployment window started."          
+  
+  deploy:
+    needs: wait-for-deployment-time
     runs-on: self-hosted
     environment:
       name: production
