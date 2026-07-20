@@ -1,76 +1,137 @@
-name: Production CI/CD
+name: 06 - Production Deployment
+
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows:
+      - "05 - Production Approval"
+    types:
+      - completed
+
 defaults:
   run:
     shell: powershell
-env:
-  PUBLISH_FOLDER: D:\GitHubRunner\Publish
-  PACKAGE_FOLDER: D:\GitHubRunner\Packages
-  PACKAGE_NAME: WebApi.zip
-  REPORT_FOLDER: D:\GitHubRunner\Reports
-  SONAR_REPORT: D:\GitHubRunner\Reports\Sonar
-  COVERAGE_REPORT: D:\GitHubRunner\Reports\Coverage
-  TEST_REPORT: D:\GitHubRunner\Reports\TestResults
-  DATABASE_FOLDER: D:\GitHubRunner\Database
-  
+
 jobs:
-   wait-for-deployment-time:
+
+  ####################################################
+  # Wait for Deployment Window
+  ####################################################
+  wait-for-deployment-time:
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     runs-on: self-hosted
+
+    timeout-minutes: 180
+
     steps:
-    - name: Wait until 10 PM
-      shell: powershell
-      run: |
-  
-        $TargetHour = 22
-  
-        while ((Get-Date).Hour -lt $TargetHour)
-        {
-            Write-Host "Current Time : $(Get-Date)"
-            Write-Host "Waiting for deployment window..."
-  
-            Start-Sleep -Seconds 60
-        }
-  
-        Write-Host "Deployment window started."                 
-   deploy:
+
+      - name: Wait Until 10 PM
+        shell: powershell
+        run: |
+
+          $Target = Get-Date -Hour 22 -Minute 0 -Second 0
+
+          if((Get-Date) -gt $Target)
+          {
+              $Target = $Target.AddDays(1)
+          }
+
+          Write-Host ""
+          Write-Host "======================================="
+          Write-Host "Deployment Window"
+          Write-Host "Current Time : $(Get-Date)"
+          Write-Host "Target Time  : $Target"
+          Write-Host "======================================="
+
+          while((Get-Date) -lt $Target)
+          {
+              Write-Host "Waiting for deployment window..."
+              Start-Sleep -Seconds 60
+          }
+
+          Write-Host ""
+          Write-Host "Deployment window started."
+
+  ####################################################
+  # Production Deployment
+  ####################################################
+  deploy:
+
     needs: wait-for-deployment-time
+
     runs-on: self-hosted
+
+    timeout-minutes: 60
+
     environment:
       name: production
+
     steps:
-    - uses: actions/checkout@v4
-    ####################################################
-    # Deploy
-    ####################################################
 
-    - name: Execute Ansible Deployment
-      run: |
+      ####################################################
+      # Checkout
+      ####################################################
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-        powershell.exe `
-        -ExecutionPolicy Bypass `
-        -File D:\GitHubRunner\Scripts\Deploy.ps1
+      ####################################################
+      # Execute Deployment
+      ####################################################
+      - name: Execute Ansible Deployment
+        shell: powershell
+        run: |
 
-    ####################################################
-    # Health Check
-    ####################################################
+          Write-Host ""
+          Write-Host "======================================="
+          Write-Host "Starting Production Deployment"
+          Write-Host "======================================="
 
-    - name: Health Check
-      run: |
+          powershell.exe `
+            -ExecutionPolicy Bypass `
+            -File D:\GitHubRunner\Scripts\Deploy.ps1
 
-        ssh root@172.31.37.164 `
-        "cd /opt/ansible && sudo ansible-playbook playbooks/healthcheck.yml"
+          if($LASTEXITCODE -ne 0)
+          {
+              throw "Deployment Failed."
+          }
 
-    ####################################################
-    # Finished
-    ####################################################
+          Write-Host ""
+          Write-Host "Deployment Completed Successfully"
 
-    - name: Deployment Completed
-      run: |
+      ####################################################
+      # Health Check
+      ####################################################
+      - name: Execute Health Check
+        shell: powershell
+        run: |
 
-        Write-Host ""
-        Write-Host "=================================="
-        Write-Host "Deployment Completed Successfully"
-        Write-Host "=================================="
+          ssh `
+            -i C:\Users\Administrator\.ssh\id_rsa `
+            -o BatchMode=yes `
+            -o StrictHostKeyChecking=no `
+            root@172.31.37.164 `
+            "cd /opt/ansible && sudo ansible-playbook playbooks/healthcheck.yml"
+
+          if($LASTEXITCODE -ne 0)
+          {
+              throw "Health Check Failed."
+          }
+
+      ####################################################
+      # Deployment Summary
+      ####################################################
+      - name: Deployment Summary
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "==============================================="
+          Write-Host "Production Deployment Completed Successfully"
+          Write-Host "==============================================="
+          Write-Host "Repository : ${{ github.repository }}"
+          Write-Host "Branch     : ${{ github.event.workflow_run.head_branch }}"
+          Write-Host "Run Number : ${{ github.event.workflow_run.run_number }}"
+          Write-Host "Server     : 172.31.37.164"
+          Write-Host "Date       : $(Get-Date)"
+          Write-Host "==============================================="
