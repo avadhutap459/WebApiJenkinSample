@@ -625,14 +625,13 @@ jobs:
       ####################################################
       - name: Test SSH Connection
         run: |
-  
           ssh `
             -v `
-            -i "$env:SSH_KEY" `
+            -i C:\Users\Administrator\.ssh\id_rsa `
             -o BatchMode=yes `
             -o StrictHostKeyChecking=no `
-            $env:ANSIBLE_SERVER `
-            "hostname && whoami && pwd"
+            root@172.31.37.164 `
+            "hostname"
   
       ####################################################
       # Copy Web Package
