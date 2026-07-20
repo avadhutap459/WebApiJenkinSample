@@ -682,21 +682,9 @@ jobs:
       # Verify Files on Ansible
       ####################################################
       - name: Verify Files on Ansible
-        run: |
-  
-          ssh root@172.31.37.164 `
-            "
-            echo '===== Web Package ====='
-            ls -lh /opt/ansible/artifacts/latest
-  
-            echo ''
-            echo '===== Database ====='
-            ls -lh /opt/ansible/artifacts/Database/latest
-  
-            echo ''
-            echo '===== Reports ====='
-            ls -lh /opt/ansible/reports/latest
-            "
+        shell: powershell
+        run: |      
+          ssh root@172.31.37.164 "echo '===== Web Package ====='; ls -lh /opt/ansible/artifacts/latest; echo ''; echo '===== Database ====='; ls -lh /opt/ansible/artifacts/Database/latest; echo ''; echo '===== Reports ====='; ls -lh /opt/ansible/reports/latest"
   
       ####################################################
       # Deployment Summary
