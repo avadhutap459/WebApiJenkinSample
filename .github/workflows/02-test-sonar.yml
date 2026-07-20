@@ -133,38 +133,42 @@ jobs:
           -Force `
           -Path "$env:SONAR_REPORT" | Out-Null
     
+        $Status = "Passed"
+
         $html = @"
-          <html>
-          <head>
-          <title>Sonar Report</title>
-          </head>
-          
-          <body>
-          
-          <h2>SonarQube Report</h2>
-          
-          <table border="1">
-          
-          <tr>
-          <th>Project</th>
-          <td>WebApi</td>
-          </tr>
-          
-          <tr>
-          <th>Date</th>
-          <td>$(Get-Date)</td>
-          </tr>
-          
-          </table>
-          
-          </body>
-          
-          </html>
-          "@
-    
+        <html>
+        <head>
+        <title>Sonar Report</title>
+        </head>
+        
+        <body>
+        
+        <h2>SonarQube Report</h2>
+        
+        <table border="1">
+        <tr>
+        <th>Project</th>
+        <td>WebApi</td>
+        </tr>
+        
+        <tr>
+        <th>Quality Gate</th>
+        <td>$Status</td>
+        </tr>
+        
+        <tr>
+        <th>Date</th>
+        <td>$(Get-Date)</td>
+        </tr>
+        </table>
+        
+        </body>
+        </html>
+        "@
+        
         $html | Out-File `
-          "$env:SONAR_REPORT\SonarReport.html" `
-          -Encoding UTF8
+            "$env:SONAR_REPORT\SonarReport.html" `
+            -Encoding UTF8
 
     ####################################################
     # Generate PDF
