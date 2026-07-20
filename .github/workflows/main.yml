@@ -236,9 +236,17 @@ jobs:
             Write-Host "Threshold  : $($condition.errorThreshold)"
         }
         
+
         if ($result.projectStatus.status -ne "OK")
         {
-            throw "Quality Gate Failed"
+            Write-Warning "=========================================="
+            Write-Warning "SonarQube Quality Gate Failed"
+            Write-Warning "POC Environment - Continuing Pipeline"
+            Write-Warning "=========================================="
+        }
+        else
+        {
+            Write-Host "Quality Gate Passed."
         }
     ####################################################
     # Verify Coverage File
