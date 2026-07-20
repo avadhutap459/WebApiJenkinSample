@@ -122,18 +122,18 @@ jobs:
         {
             throw "Sonar End Failed."
         }
-    ####################################################
-    # Generate HTML Report
-    ####################################################
+  ####################################################
+  # Generate HTML Report
+  ####################################################
     - name: Generate HTML Report
       run: |
-
+    
         New-Item `
           -ItemType Directory `
           -Force `
           -Path "$env:SONAR_REPORT" | Out-Null
-
-        @"
+    
+        $html = @"
           <html>
           <head>
           <title>Sonar Report</title>
@@ -151,11 +151,6 @@ jobs:
           </tr>
           
           <tr>
-          <th>Quality Gate</th>
-          <td>$Status</td>
-          </tr>
-          
-          <tr>
           <th>Date</th>
           <td>$(Get-Date)</td>
           </tr>
@@ -165,7 +160,11 @@ jobs:
           </body>
           
           </html>
-          "@ | Out-File "$env:SONAR_REPORT\SonarReport.html"
+          "@
+    
+        $html | Out-File `
+          "$env:SONAR_REPORT\SonarReport.html" `
+          -Encoding UTF8
 
     ####################################################
     # Generate PDF
