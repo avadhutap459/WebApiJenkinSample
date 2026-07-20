@@ -684,10 +684,7 @@ jobs:
       - name: Verify Files on Ansible
         run: |
   
-          ssh `
-            -i "$env:SSH_KEY" `
-            -o StrictHostKeyChecking=no `
-            $env:ANSIBLE_SERVER `
+          ssh root@172.31.37.164 `
             "
             echo '===== Web Package ====='
             ls -lh /opt/ansible/artifacts/latest
