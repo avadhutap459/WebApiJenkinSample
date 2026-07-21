@@ -1,0 +1,655 @@
+name: Deploy to AWS Elastic Beanstalk
+
+on:
+  push:
+    branches:
+      - master
+defaults:
+  run:
+    shell: powershell
+env:
+  PUBLISH_FOLDER: D:\GitHubRunner\aws-ebs\Publish
+  PACKAGE_FOLDER: D:\GitHubRunner\aws-ebs\Packages
+  PACKAGE_NAME: WebApi.zip
+  REPORT_FOLDER: D:\GitHubRunner\aws-ebs\Reports
+  SONAR_REPORT: D:\GitHubRunner\aws-ebs\Reports\Sonar
+  COVERAGE_REPORT: D:\GitHubRunner\aws-ebs\Reports\Coverage
+  TEST_REPORT: D:\GitHubRunner\aws-ebs\Reports\TestResults
+  DATABASE_FOLDER: D:\GitHubRunner\aws-ebs\Database
+  
+jobs:
+  cleanup:
+    runs-on: self-hosted
+    
+    steps:
+
+      ####################################################
+      # Checkout
+      ####################################################
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      ####################################################
+      # Create Report Folders
+      ####################################################
+      - name: Create Report Folders
+        run: |
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:REPORT_FOLDER" | Out-Null
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:SONAR_REPORT" | Out-Null
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:COVERAGE_REPORT" | Out-Null
+      
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:TEST_REPORT" | Out-Null
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:DATABASE_FOLDER" | Out-Null
+
+      ####################################################
+      # Cleanup Old Files
+      ####################################################
+      - name: Cleanup Old Files
+        shell: powershell
+        run: |
+      
+            Remove-Item D:\GitHubRunner\aws-ebs\Publish\* -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item D:\GitHubRunner\aws-ebs\Packages\* -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item D:\GitHubRunner\aws-ebs\Reports\* -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item D:\GitHubRunner\aws-ebs\Database\* -Recurse -Force -ErrorAction SilentlyContinue
+        
+      
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\aws-ebs\Publish | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\aws-ebs\Packages | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\aws-ebs\Reports\TestResults | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\aws-ebs\Reports\Coverage | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\aws-ebs\Reports\Sonar | Out-Null
+            New-Item -ItemType Directory -Force -Path D:\GitHubRunner\aws-ebs\Database | Out-Null
+            
+  install:
+    needs: cleanup
+
+    runs-on: self-hosted
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+     ####################################################
+    # Verify SDK
+    ####################################################
+    - name: Verify .NET SDK
+      run: |
+        dotnet --info
+        dotnet --list-sdks
+
+    ####################################################
+    # Restore
+    ####################################################
+    - name: Restore NuGet Packages
+      run: |
+        dotnet restore
+
+    ####################################################
+    # Copy Database Scripts
+    ####################################################
+    - name: Copy Database Scripts
+      run: |
+    
+          Copy-Item `
+            ".\DatabaseScript\*.sql" `
+            "$env:DATABASE_FOLDER" `
+            -Force
+        
+  build-test-sonar:
+    needs: install
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Restore Packages
+      run: |
+        dotnet restore
+    ####################################################
+    # Sonar Begin
+    ####################################################
+    - name: Sonar Begin
+      run: |
+        dotnet sonarscanner begin `
+          /k:"WebApi" `
+          /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}" `
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
+          /d:sonar.cs.vstest.reportsPaths="$env:TEST_REPORT\*.trx" `
+          /d:sonar.cs.opencover.reportsPaths="$env:COVERAGE_REPORT\coverage.opencover.xml"
+    
+    ####################################################
+    # Build
+    ####################################################
+    - name: Build Solution
+      run: |
+        dotnet build WebApi.sln --configuration Release --no-restore
+    ####################################################
+    # Unit Test + Coverage
+    ####################################################
+    - name: Run Unit Tests
+      run: |
+        dotnet test .\WebApi.Test\WebApi.Test.csproj `
+          --configuration Release `
+          --no-build `
+          --logger "trx;LogFileName=TestResults.trx" `
+          --results-directory "$env:TEST_REPORT" `
+          /p:CollectCoverage=true `
+          /p:CoverletOutput="$env:COVERAGE_REPORT\" `
+          /p:CoverletOutputFormat=opencover
+
+    ####################################################
+    # Verify Test Results
+    ####################################################
+    - name: Verify Test Results
+      run: |
+        Write-Host "TRX"
+        Get-ChildItem "$env:TEST_REPORT" -Recurse
+        Write-Host ""
+        Write-Host "Coverage"
+        Get-ChildItem "$env:COVERAGE_REPORT" -Recurse
+    
+    ####################################################
+    # Display Test Results
+    ####################################################
+    - name: Display Test Files
+      run: |
+    
+        Get-ChildItem `
+          "$env:TEST_REPORT" `
+          -Recurse  
+
+    ####################################################
+    # Sonar End
+    ####################################################
+    
+    - name: Sonar End
+    
+      run: |
+    
+        dotnet sonarscanner end `
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+    ####################################################
+    # Wait for Sonar Quality Gate
+    ####################################################
+    
+    - name: Check Sonar Quality Gate
+      shell: powershell
+      run: |
+    
+        $Token = "${{ secrets.SONAR_TOKEN }}"
+        $SonarHost = "${{ secrets.SONAR_HOST_URL }}"
+    
+        $pair = $Token + ":"
+    
+        $base64 = [Convert]::ToBase64String(
+            [System.Text.Encoding]::ASCII.GetBytes($pair)
+        )
+    
+        Write-Host "Waiting for Sonar analysis..."
+        Start-Sleep -Seconds 20
+    
+        $result = Invoke-RestMethod `
+            -Uri "$SonarHost/api/qualitygates/project_status?projectKey=WebApi" `
+            -Headers @{
+                Authorization = "Basic $base64"
+            }
+    
+        Write-Host "Quality Gate Status: $($result.projectStatus.status)"
+        foreach($condition in $result.projectStatus.conditions)
+        {
+            Write-Host "-----------------------------------"
+            Write-Host "Metric     : $($condition.metricKey)"
+            Write-Host "Status     : $($condition.status)"
+            Write-Host "Actual     : $($condition.actualValue)"
+            Write-Host "Threshold  : $($condition.errorThreshold)"
+        }
+        
+
+        if ($result.projectStatus.status -ne "OK")
+        {
+            Write-Warning "=========================================="
+            Write-Warning "SonarQube Quality Gate Failed"
+            Write-Warning "POC Environment - Continuing Pipeline"
+            Write-Warning "=========================================="
+        }
+        else
+        {
+            Write-Host "Quality Gate Passed."
+        }
+    ####################################################
+    # Verify Coverage File
+    ####################################################
+    - name: Verify Coverage File
+
+      run: |
+    
+        Test-Path "$env:COVERAGE_REPORT\coverage.opencover.xml"
+        Get-ChildItem "$env:COVERAGE_REPORT"
+        
+    ####################################################
+    # Generate Sonar HTML Report
+    ####################################################
+    - name: Generate Sonar HTML Report
+      shell: powershell
+      run: |
+    
+        if (!(Test-Path "$env:SONAR_REPORT"))
+        {
+            New-Item `
+                -ItemType Directory `
+                -Path "$env:SONAR_REPORT" `
+                -Force | Out-Null
+        }
+    
+        $html = @"
+    
+        <html>
+    
+        <head>
+    
+        <title>SonarQube Report</title>
+    
+        <style>
+    
+        body{
+            font-family:Arial;
+            margin:40px;
+        }
+    
+        table{
+            border-collapse:collapse;
+            width:70%;
+        }
+    
+        td,th{
+            border:1px solid black;
+            padding:8px;
+        }
+    
+        th{
+            background:#efefef;
+        }
+    
+        </style>
+    
+        </head>
+    
+        <body>
+    
+        <h1>SonarQube Analysis Report</h1>
+    
+        <table>
+    
+        <tr><th>Project</th><td>WebApi</td></tr>
+    
+        <tr><th>Quality Gate</th><td>Passed</td></tr>
+    
+        <tr><th>Build Number</th><td>${{ github.run_number }}</td></tr>
+    
+        <tr><th>Repository</th><td>${{ github.repository }}</td></tr>
+    
+        <tr><th>Branch</th><td>${{ github.ref_name }}</td></tr>
+    
+        <tr><th>Build Date</th><td>$(Get-Date)</td></tr>
+    
+        </table>
+    
+        </body>
+    
+        </html>
+    
+        "@
+    
+        $html | Out-File `
+            "$env:SONAR_REPORT\SonarReport.html" `
+            -Encoding UTF8  
+  
+    ####################################################
+    # Generate PDF Report
+    ####################################################
+    
+    - name: Generate PDF Report
+      run: |
+    
+          & "C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe" `
+          "$env:SONAR_REPORT\SonarReport.html" `
+          "$env:SONAR_REPORT\SonarReport.pdf"
+
+    ####################################################
+    # Generate Coverage Report
+    ####################################################
+    
+    - name: Generate Coverage Report
+      run: |
+    
+          reportgenerator `
+            -reports:"$env:COVERAGE_REPORT\coverage.opencover.xml" `
+            -targetdir:"$env:COVERAGE_REPORT\Html" `
+            -reporttypes:"Html;HtmlSummary"
+    
+    ####################################################
+    # Verify Reports
+    ####################################################
+    
+    - name: Verify Reports
+    
+      run: |
+    
+          Get-ChildItem `
+          "$env:REPORT_FOLDER" `
+          -Recurse
+
+    ####################################################
+    # Zip Reports
+    ####################################################
+    
+    - name: Zip Reports
+    
+      run: |
+    
+          $ReportZip="$env:PACKAGE_FOLDER\Reports.zip"
+    
+          if(Test-Path $ReportZip)
+          {
+              Remove-Item $ReportZip -Force
+          }
+    
+          Compress-Archive `
+              -Path "$env:REPORT_FOLDER\*" `
+              -DestinationPath $ReportZip
+
+ 
+  publish:
+    needs: build-test-sonar
+    runs-on: self-hosted
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: Restore Packages
+      run: |
+        dotnet restore
+    ####################################################
+    # Publish
+    ####################################################
+
+    - name: Publish Application
+      run: |
+        Remove-Item "$env:PUBLISH_FOLDER\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+        dotnet publish .\WebApi\WebApi.csproj `
+          --configuration Release `
+          --output "$env:PUBLISH_FOLDER"
+
+    ####################################################
+    # Zip Package
+    ####################################################
+
+    - name: Create Deployment Package
+      run: |
+
+        if(Test-Path "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME")
+        {
+            Remove-Item "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME" -Force
+        }
+
+        Compress-Archive `
+          -Path "$env:PUBLISH_FOLDER\*" `
+          -DestinationPath "$env:PACKAGE_FOLDER\$env:PACKAGE_NAME"
+
+        Compress-Archive `
+        -Path "$env:DATABASE_FOLDER\*" `
+        -DestinationPath "$env:PACKAGE_FOLDER\Database.zip" `
+        -Force
+
+    ####################################################
+    # Verify Package
+    ####################################################
+
+    - name: Verify Package
+      run: |
+
+        Get-ChildItem "$env:PACKAGE_FOLDER"
+
+  verify-connection:
+    needs: publish
+    runs-on: self-hosted
+    
+    steps:
+    - uses: actions/checkout@v4
+     ####################################################
+    # Verify SSH
+    ####################################################
+    
+    - name: Test SSH
+      shell: powershell
+      run: |
+        ssh `
+          -v `
+          -i C:\Users\Administrator\.ssh\id_rsa `
+          -o BatchMode=yes `
+          -o StrictHostKeyChecking=no `
+          root@172.31.37.164 `
+          "hostname"
+
+    ####################################################
+    # Copy Package to Ansible
+    ####################################################
+
+    - name: Copy Package to Ansible Server
+      run: |
+
+        powershell.exe `
+        -ExecutionPolicy Bypass `
+        -File D:\GitHubRunner\aws-ebs\Scripts\CopyToAnsible.ps1
+
+    ####################################################
+    # Copy Sonar Reports
+    ####################################################
+    
+    - name: Copy Sonar Reports
+    
+      run: |
+    
+        powershell.exe `
+          -ExecutionPolicy Bypass `
+          -File D:\GitHubRunner\aws-ebs\Scripts\CopyReportsToAnsible.ps1
+    
+    ####################################################
+    # Verify Copy
+    ####################################################
+
+    - name: Verify Package on Ansible
+      run: |
+
+        ssh root@172.31.37.164 `
+        "ls -lh /opt/ansible/artifacts/aws-ebs"
+  
+  approval-email:
+    needs: verify-connection
+    runs-on: self-hosted
+  
+    steps:
+      - name: Send Approval Request
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+  
+          subject: "Production Deployment Approval Required"
+  
+          to: avadhutap459@gmail.com
+  
+          from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+  
+          secure: false
+  
+          body: |
+            Production deployment is ready.
+  
+            Repository : ${{ github.repository }}
+            Branch     : ${{ github.ref_name }}
+            Build      : #${{ github.run_number }}
+  
+            Please approve the deployment in GitHub Actions.
+  
+            Workflow:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}          
+  
+  deploy:
+    needs: wait-for-deployment-time
+    runs-on: self-hosted
+    environment:
+      name: production
+    steps:
+    - uses: actions/checkout@v4
+    ####################################################
+    # Deploy
+    ####################################################
+
+    - name: Execute Ansible Deployment
+      run: |
+
+        ssh root@172.31.37.164 `
+	"cd /opt/ansible && ansible-playbook playbooks/deploy-eb.yml -i inventory/production/aws-ebs/hosts.ini"
+
+    ####################################################
+    # Finished
+    ####################################################
+
+    - name: Deployment Completed
+      run: |
+
+        Write-Host ""
+        Write-Host "=================================="
+        Write-Host "Deployment Completed Successfully"
+        Write-Host "=================================="
+ 
+  notify:
+
+    needs:
+      - cleanup
+      - install
+      - build-test-sonar
+      - publish
+      - verify-connection
+      - deploy
+  
+    if: always()
+  
+    runs-on: self-hosted
+    
+    steps:
+    ####################################################
+    # Send Success Email
+    ####################################################
+        - name: Send Build Success Email
+          if: |
+            ${{
+              needs.cleanup.result == 'success' &&
+              needs.install.result == 'success' &&
+              needs.build-test-sonar.result == 'success' &&
+              needs.publish.result == 'success' &&
+              needs.verify-connection.result == 'success' &&
+              needs.deploy.result == 'success'
+            }}
+          uses: dawidd6/action-send-mail@v3
+          with:
+            server_address: ${{ secrets.SMTP_SERVER }}
+            server_port: ${{ secrets.SMTP_PORT }}
+        
+            username: ${{ secrets.SMTP_USERNAME }}
+            password: ${{ secrets.SMTP_PASSWORD }}
+        
+            subject: "Production Deployment Successful - WebApi"
+        
+            to: ${{ secrets.EMAIL_TO }}
+        
+            from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+        
+            secure: false
+    
+            attachments: |
+              D:\GitHubRunner\aws-ebs\Reports\Sonar\SonarReport.pdf
+              D:\GitHubRunner\aws-ebs\Reports\Sonar\SonarReport.html
+              D:\GitHubRunner\aws-ebs\Reports\Coverage\coverage.opencover.xml
+        
+            body: |
+              Production deployment completed successfully.
+        
+              Repository : ${{ github.repository }}
+              Branch     : ${{ github.ref_name }}
+              Build      : #${{ github.run_number }}
+        
+              Status     : SUCCESS
+        
+              Commit:
+              ${{ github.event.head_commit.message }}
+        
+              Workflow:
+              ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    
+    ####################################################
+    # Send Failure Email
+    ####################################################
+        - name: Send Failure Email
+          if: |
+            ${{
+              needs.cleanup.result == 'failure' ||
+              needs.install.result == 'failure' ||
+              needs.build-test-sonar.result == 'failure' ||
+              needs.publish.result == 'failure' ||
+              needs.verify-connection.result == 'failure' ||
+              needs.deploy.result == 'failure'
+            }}
+          uses: dawidd6/action-send-mail@v3
+          with:
+                  server_address: ${{ secrets.SMTP_SERVER }}
+                  server_port: ${{ secrets.SMTP_PORT }}
+              
+                  username: ${{ secrets.SMTP_USERNAME }}
+                  password: ${{ secrets.SMTP_PASSWORD }}
+              
+                  subject: "Production Deployment Failed - WebApi"
+              
+                  to: ${{ secrets.EMAIL_TO }}
+              
+                  from: GitHub CI/CD <${{ secrets.SMTP_USERNAME }}>
+              
+                  secure: false
+              
+                  body: |
+                    Production deployment FAILED.
+              
+                    Repository : ${{ github.repository }}
+                    Branch     : ${{ github.ref_name }}
+                    Build      : #${{ github.run_number }}
+              
+                    Please check the workflow logs.
+              
+                    Workflow:
+                    ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+ 
