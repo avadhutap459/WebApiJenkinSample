@@ -13,6 +13,12 @@ namespace WebApi.Controllers
             return Ok("Welcome to the Home Controller! Avadhut Parab");
         }
 
+        [HttpGet("GetWelcome")]
+        public IActionResult GetWelcome()
+        {
+            return Ok("AWS EBS");
+        }
+
         [HttpGet("GetEBS")]
         public IActionResult GetEBS()
         {
