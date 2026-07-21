@@ -535,7 +535,7 @@ jobs:
 
         ssh `
         root@172.31.37.164 `
-        "cd /opt/ansible && ansible-playbook playbooks/deploy-eb.yml -i inventory/production/aws-ebs/hosts.ini"
+        "cd /opt/ansible && ansible-playbook playbooks/deploy-ebs.yml -i inventory/production/aws-ebs/hosts.ini"
 
     ####################################################
     # Finished
