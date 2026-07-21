@@ -520,21 +520,22 @@ jobs:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}          
   
   deploy:
-    needs: wait-for-deployment-time
+    needs: approval-email
     runs-on: self-hosted
     environment:
       name: production
     steps:
     - uses: actions/checkout@v4
-    ####################################################
+     ####################################################
     # Deploy
     ####################################################
 
     - name: Execute Ansible Deployment
       run: |
 
-        ssh root@172.31.37.164 `
-	"cd /opt/ansible && ansible-playbook playbooks/deploy-eb.yml -i inventory/production/aws-ebs/hosts.ini"
+        ssh `
+        root@172.31.37.164 `
+        "cd /opt/ansible && ansible-playbook playbooks/deploy-eb.yml -i inventory/production/aws-ebs/hosts.ini"
 
     ####################################################
     # Finished
