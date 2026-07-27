@@ -1,17 +1,100 @@
-trigger: none
+trigger:
+- master
 
 pool:
   name: ProductionPool
 
+variables:
+  BuildConfiguration: 'Release'
+  PublishFolder: '$(Build.ArtifactStagingDirectory)\Publish'
+  LocalPublishFolder: 'D:\Build\Publish'
+
 steps:
-- script: echo Hello Azure DevOps
-  displayName: 'Test Azure DevOps Agent'
 
-- script: hostname
-  displayName: 'Display Server Name'
+#-----------------------------------------
+# Display Agent Information
+#-----------------------------------------
+- powershell: |
+    Write-Host "====================================="
+    Write-Host "Agent Name : $env:AGENT_NAME"
+    Write-Host "Machine    : $env:COMPUTERNAME"
+    Write-Host "====================================="
+  displayName: 'Display Agent Information'
 
-- script: dotnet --version
-  displayName: 'Check .NET SDK'
+#-----------------------------------------
+# Install NuGet
+#-----------------------------------------
+- task: NuGetToolInstaller@1
+  displayName: 'Install NuGet'
 
-- script: git --version
-  displayName: 'Check Git'
+#-----------------------------------------
+# Restore Packages
+#-----------------------------------------
+- task: DotNetCoreCLI@2
+  displayName: 'Restore Packages'
+  inputs:
+    command: restore
+    projects: '**/*.csproj'
+
+#-----------------------------------------
+# Build
+#-----------------------------------------
+- task: DotNetCoreCLI@2
+  displayName: 'Build Solution'
+  inputs:
+    command: build
+    projects: '**/*.csproj'
+    arguments: '--configuration $(BuildConfiguration)'
+
+#-----------------------------------------
+# Publish
+#-----------------------------------------
+- task: DotNetCoreCLI@2
+  displayName: 'Publish Application'
+  inputs:
+    command: publish
+    publishWebProjects: true
+    arguments: '--configuration $(BuildConfiguration) --output $(PublishFolder)'
+    zipAfterPublish: false
+
+#-----------------------------------------
+# Create Publish Folder
+#-----------------------------------------
+- powershell: |
+    if (!(Test-Path "$(LocalPublishFolder)"))
+    {
+        New-Item -ItemType Directory -Path "$(LocalPublishFolder)"
+    }
+  displayName: 'Create Publish Folder'
+
+#-----------------------------------------
+# Copy Publish Files
+#-----------------------------------------
+- task: CopyFiles@2
+  displayName: 'Copy Publish Files'
+  inputs:
+    SourceFolder: '$(PublishFolder)'
+    Contents: '**'
+    TargetFolder: '$(LocalPublishFolder)'
+    CleanTargetFolder: true
+    OverWrite: true
+
+#-----------------------------------------
+# Verify Publish Folder
+#-----------------------------------------
+- powershell: |
+    Write-Host ""
+    Write-Host "Published Files"
+    Write-Host "=========================="
+    Get-ChildItem D:\Build\Publish -Recurse
+  displayName: 'Verify Publish Files'
+
+#-----------------------------------------
+# Publish Build Artifact
+#-----------------------------------------
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact'
+  inputs:
+    PathtoPublish: '$(PublishFolder)'
+    ArtifactName: 'WebApi'
+    publishLocation: 'Container'
