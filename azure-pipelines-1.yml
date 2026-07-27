@@ -1,0 +1,17 @@
+trigger: none
+
+pool:
+  name: ProductionPool
+
+steps:
+- script: echo Hello Azure DevOps
+  displayName: 'Test Azure DevOps Agent'
+
+- script: hostname
+  displayName: 'Display Server Name'
+
+- script: dotnet --version
+  displayName: 'Check .NET SDK'
+
+- script: git --version
+  displayName: 'Check Git'
