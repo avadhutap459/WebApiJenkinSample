@@ -1,0 +1,84 @@
+name: Build WebApi
+
+on:
+
+  push:
+    branches:
+      - master
+
+  workflow_dispatch:
+
+env:
+
+  BUILD_CONFIGURATION: Release
+
+  DOTNET_VERSION: '8.0.x'
+
+  PUBLISH_FOLDER: C:\Deployment\Publish
+
+  PACKAGE_FOLDER: C:\Deployment\Package
+
+  PACKAGE_NAME: WebApi.zip
+
+jobs:
+
+  Build:
+
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Display .NET Version
+        run: dotnet --info
+
+      - name: Restore Solution
+        run: dotnet restore WebApi.sln
+
+      - name: Build Solution
+        run: dotnet build WebApi.sln --configuration Release --no-restore
+
+      - name: Execute Unit Test
+        run: dotnet test WebApi.Test/WebApi.Test.csproj --configuration Release --no-build
+
+      - name: Clean Publish Folder
+        shell: cmd
+        run: |
+          if exist "C:\Deployment\Publish" rmdir /S /Q "C:\Deployment\Publish"
+          mkdir "C:\Deployment\Publish"
+
+      - name: Publish API
+        run: dotnet publish WebApi/WebApi.csproj --configuration Release --output C:\Deployment\Publish
+
+      - name: Clean Package Folder
+        shell: cmd
+        run: |
+          if not exist "C:\Deployment\Package" mkdir "C:\Deployment\Package"
+          if exist "C:\Deployment\Package\WebApi.zip" del /F /Q "C:\Deployment\Package\WebApi.zip"
+
+      - name: Create ZIP Package
+        shell: cmd
+        run: |
+          cd /d C:\Deployment
+          tar -a -cf Package\WebApi.zip Publish
+
+      - name: Verify Publish Folder
+        shell: cmd
+        run: dir C:\Deployment\Publish
+
+      - name: Verify Package Folder
+        shell: cmd
+        run: dir C:\Deployment\Package
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebApi
+          path: C:\Deployment\Package\WebApi.zip
