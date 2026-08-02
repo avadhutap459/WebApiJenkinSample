@@ -43,11 +43,12 @@ jobs:
         if exist "C:\Deployment\Publish" rmdir /S /Q "C:\Deployment\Publish"
         mkdir "C:\Deployment\Publish"
 
-    - name: Publish
+    - name: Publish API
+      shell: cmd
       run: |
-        dotnet publish WebApi/WebApi.csproj ^
-        --configuration Release ^
-        --output C:\Deployment\Publish
+        dotnet publish WebApi\WebApi.csproj ^
+          --configuration Release ^
+          --output C:\Deployment\Publish
 
     - name: Verify Publish
       shell: cmd
