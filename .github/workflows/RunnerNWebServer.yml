@@ -61,7 +61,7 @@ jobs:
         "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe" ^
         -verb:sync ^
         -source:contentPath="C:\Deployment\Publish" ^
-        -dest:contentPath="C:\Websites\WebApi",computerName="https://172.31.10.193:8172/msdeploy.axd?site=WebApi",userName="WEBSERVER01\deployuser",password="NewStrongPassword@123",authType=Basic ^
+        -dest:contentPath="WebApi",computerName="https://172.31.10.193:8172/msdeploy.axd?site=WebApi",userName="WEBSERVER01\deployuser",password="NewStrongPassword@123",authType=Basic ^
         -enableRule:AppOffline ^
         -useChecksum ^
         -retryAttempts:5 ^
