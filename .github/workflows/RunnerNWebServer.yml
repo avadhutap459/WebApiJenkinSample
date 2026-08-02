@@ -54,20 +54,49 @@ jobs:
       shell: cmd
       run: |
         dir C:\Deployment\Publish
-
-    - name: Deploy using MSDeploy
+    
+    - name: Create Backup Folder
+      shell: cmd
+      run: |
+        if not exist C:\Deployment\Backup mkdir C:\Deployment\Backup
+    
+    - name: Backup Current Website
+      shell: cmd
+      run: |
+        for /f "tokens=2 delims==" %%a in ('wmic os get localdatetime /value ^| find "="') do set DTS=%%a
+        set BACKUP=%DTS:~0,8%_%DTS:~8,6%
+        "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe" ^
+          -verb:sync ^
+          -source:contentPath="WebApi" ^
+          -dest:package="C:\Deployment\Backup\WebApi_%BACKUP%.zip"
+    
+    - name: Deploy
       shell: cmd
       run: |
         "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe" ^
-        -verb:sync ^
-        -source:contentPath="C:\Deployment\Publish" ^
-        -dest:contentPath="WebApi",computerName="https://172.31.15.114:8172/msdeploy.axd?site=WebApi",userName="WEBSERVER01\deployuser",password="NewStrongPassword@123",authType=Basic ^
-        -enableRule:AppOffline ^
-        -useChecksum ^
-        -retryAttempts:5 ^
-        -retryInterval:3000 ^
-        -allowUntrusted
-
+          -verb:sync ^
+          -source:contentPath="C:\Deployment\Publish" ^
+          -dest:contentPath="WebApi",computerName="https://$172.31.15.114:8172/msdeploy.axd?site=$WebApi",userName="WEBSERVER01\deployuser",password="NewStrongPassword@123",authType=Basic ^
+          -enableRule:AppOffline ^
+          -useChecksum ^
+          -retryAttempts:5 ^
+          -retryInterval:3000 ^
+          -allowUntrusted
+    
+    - name: Health Check
+      shell: pwsh
+      run: |
+        $response = Invoke-WebRequest `
+          -Uri "http://172.31.15.114/health" `
+          -UseBasicParsing `
+          -TimeoutSec 30
+    
+        if ($response.StatusCode -ne 200) {
+          throw "Health check failed. Status: $($response.StatusCode)"
+        }
+    
+        Write-Host "Application is healthy."
+        
     - name: Verify Deployment
       shell: cmd
       run: |
